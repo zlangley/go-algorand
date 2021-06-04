@@ -221,6 +221,18 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 	})
 }
 
+func (v2 *Handlers) SpeculationRun(ctx echo.Context, speculation string) error {
+	ledger, err := v2.Node.SpeculationLedger(speculation)
+	if err != nil {
+		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
+	}
+	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
+		Base:        uint64(ledger.Latest()),
+		Checkpoints: &ledger.Checkpoints,
+		Token:       speculation,
+	})
+}
+
 // Perform operations on a speculation object.
 // (POST /v2/speculation/{token}/{operation})
 func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, operation string) error {
