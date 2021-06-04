@@ -2680,6 +2680,104 @@
         ]
       }
     },
+    "/v2/speculation/{speculation}/kalgo": {
+      "post": {
+        "description": "Given AlgoClarity source code in plain text, run program and update the speculative context.",
+        "operationId": "SpeculationRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "speculation",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "AlgoClarity source code to interpret",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Specifies the base round and token for speculation execution.",
+                  "properties": {
+                    "base": {
+                      "description": "The round at which speculation begins",
+                      "type": "integer"
+                    },
+                    "checkpoints": {
+                      "description": "The number of transactions preceeding each checkpoint.",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "token": {
+                      "description": "The persistent token by which the speculation can be referenced",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "base",
+                    "token"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Speculation information"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid API Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Error"
+          },
+          "default": {
+            "content": {},
+            "description": "Unknown Error"
+          }
+        },
+        "summary": "Run AlgoClarity code and update the speculative context",
+        "x-codegen-request-body-name": "source"
+      }
+    },
     "/v2/speculation/{speculation}/{operation}": {
       "post": {
         "description": "Given a speculation token, perform a scope opening or closing operation",
