@@ -602,7 +602,7 @@ type SpeculationResponse struct {
 	// The round at which speculation begins
 	Base uint64 `json:"base"`
 
-	// The number of transactions preceeding each checkpoint.
+	// The number of transactions preceding each checkpoint.
 	Checkpoints *[]uint64 `json:"checkpoints,omitempty"`
 
 	// The persistent token by which the speculation can be referenced
@@ -698,6 +698,13 @@ type GetProofParams struct {
 
 	// Configures whether the response object is JSON or MessagePack encoded.
 	Format *string `json:"format,omitempty"`
+}
+
+// CreateContractParams defines parameters for CreateContract.
+type CreateContractParams struct {
+
+	// The speculative context in which to perform the query or operation.
+	Speculation *string `json:"speculation,omitempty"`
 }
 
 // TealDryrunJSONBody defines parameters for TealDryrun.
