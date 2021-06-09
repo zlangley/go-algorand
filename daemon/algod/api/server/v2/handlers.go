@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -37,6 +39,7 @@ import (
 	"github.com/algorand/go-algorand/data/bookkeeping"
 	"github.com/algorand/go-algorand/data/transactions"
 	"github.com/algorand/go-algorand/data/transactions/logic"
+	"github.com/algorand/go-algorand/kalgo"
 	"github.com/algorand/go-algorand/ledger/ledgercore"
 	"github.com/algorand/go-algorand/logging"
 	"github.com/algorand/go-algorand/node"
@@ -221,10 +224,32 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 	})
 }
 
-func (v2 *Handlers) SpeculationRun(ctx echo.Context, speculation string) error {
+// CreateContract creates an AlgoClarity contract.
+// (POST /v2/contract/{id})
+func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated.CreateContractParams) error {
+	if params.Speculation == nil {
+		return errors.New("speculation token required (for now)")
+	}
+	speculation := *params.Speculation
 	ledger, err := v2.Node.SpeculationLedger(speculation)
 	if err != nil {
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
+	}
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(ctx.Request().Body)
+
+	kenv := kalgo.Env{
+		AlgodAddress: ctx.Request().Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
+		AlgodToken: ctx.Request().Header.Get("X-Algo-API-Token"),
+		SpeculationToken: *params.Speculation,
+		SourcePrefix: "/Users/zach/testnet-data/clarity/" + speculation,
+	}
+	pgm := kalgo.Program{
+		Name: id,
+		Source: buf.Bytes(),
+	}
+	if err := kalgo.Interpret(kenv, pgm); err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
@@ -238,6 +263,7 @@ func (v2 *Handlers) SpeculationRun(ctx echo.Context, speculation string) error {
 func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, operation string) error {
 	if operation == "delete" {
 		v2.Node.DestroySpeculationLedger(speculation)
+		os.RemoveAll("/Users/zach/testnet-data/clarity/" + speculation)
 		// XXX: return something more reasonable
 		return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 			Base:  0,

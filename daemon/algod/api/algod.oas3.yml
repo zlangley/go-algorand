@@ -623,7 +623,7 @@
                   "type": "integer"
                 },
                 "checkpoints": {
-                  "description": "The number of transactions preceeding each checkpoint.",
+                  "description": "The number of transactions preceding each checkpoint.",
                   "items": {
                     "type": "integer"
                   },
@@ -2160,7 +2160,7 @@
                       "type": "integer"
                     },
                     "checkpoints": {
-                      "description": "The number of transactions preceeding each checkpoint.",
+                      "description": "The number of transactions preceding each checkpoint.",
                       "items": {
                         "type": "integer"
                       },
@@ -2524,6 +2524,112 @@
         ]
       }
     },
+    "/v2/contracts/{id}": {
+      "post": {
+        "description": "Creates a new contract with the specified identifier and source code.",
+        "operationId": "CreateContract",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The speculative context in which to perform the query or operation.",
+            "in": "query",
+            "name": "speculation",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "AlgoClarity source code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Specifies the base round and token for speculation execution.",
+                  "properties": {
+                    "base": {
+                      "description": "The round at which speculation begins",
+                      "type": "integer"
+                    },
+                    "checkpoints": {
+                      "description": "The number of transactions preceding each checkpoint.",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "token": {
+                      "description": "The persistent token by which the speculation can be referenced",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "base",
+                    "token"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Speculation information"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid API Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Error"
+          },
+          "default": {
+            "content": {},
+            "description": "Unknown Error"
+          }
+        },
+        "summary": "Creates a new contract with the specified identifier and source code",
+        "x-codegen-request-body-name": "source"
+      }
+    },
     "/v2/ledger/supply": {
       "get": {
         "operationId": "GetSupply",
@@ -2680,104 +2786,6 @@
         ]
       }
     },
-    "/v2/speculation/{speculation}/kalgo": {
-      "post": {
-        "description": "Given AlgoClarity source code in plain text, run program and update the speculative context.",
-        "operationId": "SpeculationRun",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "speculation",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "text/plain": {
-              "schema": {
-                "format": "binary",
-                "type": "string"
-              }
-            }
-          },
-          "description": "AlgoClarity source code to interpret",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Specifies the base round and token for speculation execution.",
-                  "properties": {
-                    "base": {
-                      "description": "The round at which speculation begins",
-                      "type": "integer"
-                    },
-                    "checkpoints": {
-                      "description": "The number of transactions preceeding each checkpoint.",
-                      "items": {
-                        "type": "integer"
-                      },
-                      "type": "array"
-                    },
-                    "token": {
-                      "description": "The persistent token by which the speculation can be referenced",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "base",
-                    "token"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Speculation information"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid API Token"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal Error"
-          },
-          "default": {
-            "content": {},
-            "description": "Unknown Error"
-          }
-        },
-        "summary": "Run AlgoClarity code and update the speculative context",
-        "x-codegen-request-body-name": "source"
-      }
-    },
     "/v2/speculation/{speculation}/{operation}": {
       "post": {
         "description": "Given a speculation token, perform a scope opening or closing operation",
@@ -2812,7 +2820,7 @@
                       "type": "integer"
                     },
                     "checkpoints": {
-                      "description": "The number of transactions preceeding each checkpoint.",
+                      "description": "The number of transactions preceding each checkpoint.",
                       "items": {
                         "type": "integer"
                       },
@@ -3134,7 +3142,7 @@
     },
     "/v2/teal/compile": {
       "post": {
-        "description": "Given TEAL source code in plain text, return base64 encoded program bytes and base32 SHA512_256 hash of program bytes (Address style). This endpoint is only enabled when a node's configureation file sets EnableDeveloperAPI to true.",
+        "description": "Given TEAL source code in plain text, return base64 encoded program bytes and base32 SHA512_256 hash of program bytes (Address style). This endpoint is only enabled when a node's configuration file sets EnableDeveloperAPI to true.",
         "operationId": "TealCompile",
         "requestBody": {
           "content": {
@@ -3218,7 +3226,7 @@
     },
     "/v2/teal/dryrun": {
       "post": {
-        "description": "Executes TEAL program(s) in context and returns debugging information about the execution. This endpoint is only enabled when a node's configureation file sets EnableDeveloperAPI to true.",
+        "description": "Executes TEAL program(s) in context and returns debugging information about the execution. This endpoint is only enabled when a node's configuration file sets EnableDeveloperAPI to true.",
         "operationId": "TealDryrun",
         "requestBody": {
           "content": {
