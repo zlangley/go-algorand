@@ -43,13 +43,25 @@ func saveToDisk(pgm Program, root string) (*os.File, error) {
 	return file, err
 }
 
-func Interpret(env Env, pgm Program) error {
+func Init(env Env, pgm Program) error {
 	file, err := saveToDisk(pgm, env.SourcePrefix)
 	if err != nil {
 		return err
 	}
 
 	cmd := exec.Command("./kalgo", "init", "--prefix", env.SourcePrefix, file.Name())
+	cmd.Dir = os.Getenv("KALGO_PREFIX")
+	cmd.Env = append(os.Environ(),
+		"ALGOD_ADDRESS=" + env.AlgodAddress,
+		"ALGOD_TOKEN=" + env.AlgodToken,
+		"SPECULATION_TOKEN=" + env.SpeculationToken,
+	)
+	return cmd.Run()
+}
+
+
+func Call(env Env, id string, fn string, args string) error {
+	cmd := exec.Command("./kalgo", "call", "--prefix", env.SourcePrefix, fmt.Sprintf(".%s", id), fn, args)
 	cmd.Dir = os.Getenv("KALGO_PREFIX")
 	cmd.Env = append(os.Environ(),
 		"ALGOD_ADDRESS=" + env.AlgodAddress,

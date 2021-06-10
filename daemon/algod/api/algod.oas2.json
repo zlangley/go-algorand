@@ -1342,6 +1342,72 @@
           }
         }
       }
+    },
+    "/v2/contracts/{id}/call/{function}": {
+      "post": {
+        "description": "Calls a function on a previously initialized contract.",
+        "consumes": [
+          "text/plain"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "summary": "Calls a function on a previously initialized contract.",
+        "operationId": "CallContract",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "name": "function",
+            "in": "path",
+            "required": true
+          },
+          {
+            "$ref": "#/parameters/speculation"
+          },
+          {
+            "type": "string",
+            "name": "args",
+            "in": "query",
+            "default": "",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/SpeculationResponse"
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Invalid API Token",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "default": {
+            "description": "Unknown Error"
+          }
+        }
+      }
     }
   },
   "definitions": {
