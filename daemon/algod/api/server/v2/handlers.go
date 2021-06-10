@@ -228,7 +228,8 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 // (POST /v2/contract/{id})
 func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated.CreateContractParams) error {
 	if params.Speculation == nil {
-		return errors.New("speculation token required (for now)")
+		err := errors.New("speculation token required (for now)")
+		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
 	speculation := *params.Speculation
 	ledger, err := v2.Node.SpeculationLedger(speculation)
@@ -248,7 +249,39 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		Name: id,
 		Source: buf.Bytes(),
 	}
-	if err := kalgo.Interpret(kenv, pgm); err != nil {
+	if err := kalgo.Init(kenv, pgm); err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
+	}
+	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
+		Base:        uint64(ledger.Latest()),
+		Checkpoints: &ledger.Checkpoints,
+		Token:       speculation,
+	})
+}
+
+// Calls a function on a previously initialized contract.
+// (POST /v2/contracts/{id}/call/{function})
+func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, params generated.CallContractParams) error {
+	if params.Speculation == nil {
+		err := errors.New("speculation token required (for now)")
+		return badRequest(ctx, err, err.Error(), v2.Log)
+	}
+	speculation := *params.Speculation
+	args := ""
+	if params.Args != nil {
+		args = *params.Args
+	}
+	ledger, err := v2.Node.SpeculationLedger(speculation)
+	if err != nil {
+		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
+	}
+	kenv := kalgo.Env{
+		AlgodAddress: ctx.Request().Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
+		AlgodToken: ctx.Request().Header.Get("X-Algo-API-Token"),
+		SpeculationToken: speculation,
+		SourcePrefix: "/Users/zach/testnet-data/clarity/" + speculation,
+	}
+	if err := kalgo.Call(kenv, id, function, args); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{

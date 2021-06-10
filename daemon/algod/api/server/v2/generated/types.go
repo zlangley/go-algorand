@@ -707,6 +707,14 @@ type CreateContractParams struct {
 	Speculation *string `json:"speculation,omitempty"`
 }
 
+// CallContractParams defines parameters for CallContract.
+type CallContractParams struct {
+
+	// The speculative context in which to perform the query or operation.
+	Speculation *string `json:"speculation,omitempty"`
+	Args        *string `json:"args,omitempty"`
+}
+
 // TealDryrunJSONBody defines parameters for TealDryrun.
 type TealDryrunJSONBody DryrunRequest
 
