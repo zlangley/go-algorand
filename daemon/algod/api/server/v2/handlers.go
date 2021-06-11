@@ -254,9 +254,9 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 	buf.ReadFrom(ctx.Request().Body)
 
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	pgm := kalgo.Program{Name: id, Source: buf.String()}
+	args := kalgo.InitArgs{Name: id, Source: buf.String()}
 
-	if err := kalgo.Init(kenv, pgm); err != nil {
+	if err := kalgo.Init(kenv, args); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -285,10 +285,12 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 	if params.Args != nil {
 		args = *params.Args
 	}
-	fn := kalgo.FunctionCall{
+	fn := kalgo.CallArgs{
 		ProgramName: id,
 		Name:        function,
 		Args:        args,
+		Sender:      params.Sender,
+		Address:     params.Address,
 	}
 
 	if err := kalgo.Call(kenv, fn); err != nil {
@@ -301,14 +303,16 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 	})
 }
 
-func decodeBatchExecuteBody(data []byte) ([]kalgo.BatchItem, error) {
+func decodeBatchExecuteBody(data []byte) ([]kalgo.Command, error) {
 	var batch []interface{}
 	if err := decode(protocol.JSONHandle, data, &batch); err != nil {
 		return nil, err
 	}
 
+	// TODO[zach]: Support sender/address here.
+
 	// FIXME[zach]: Need to find out how to handle heterogeneous lists... (And apparently, oneOf is not actually supported?)
-	ret := make([]kalgo.BatchItem, len(batch))
+	ret := make([]kalgo.Command, len(batch))
 	for i, el := range batch {
 		elmap, ok := el.(map[interface{}]interface{})
 		if !ok {
@@ -324,8 +328,8 @@ func decodeBatchExecuteBody(data []byte) ([]kalgo.BatchItem, error) {
 			if !ok {
 				return nil, errors.New("could not extract program source")
 			}
-			ret[i] = kalgo.BatchItem{
-				Program: &kalgo.Program{
+			ret[i] = kalgo.Command{
+				InitArgs: &kalgo.InitArgs{
 					Name:   id,
 					Source: source,
 				},
@@ -343,8 +347,8 @@ func decodeBatchExecuteBody(data []byte) ([]kalgo.BatchItem, error) {
 			if !ok {
 				return nil, errors.New("could not extract function args")
 			}
-			ret[i] = kalgo.BatchItem{
-				FunctionCall: &kalgo.FunctionCall{
+			ret[i] = kalgo.Command{
+				CallArgs: &kalgo.CallArgs{
 					ProgramName: id,
 					Name:        name,
 					Args:        args,

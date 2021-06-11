@@ -1148,8 +1148,16 @@
       "Contract": {
         "description": "An AlgoClarity contract.",
         "properties": {
+          "address": {
+            "description": "The contract address to be assigned to the contract.",
+            "type": "string"
+          },
           "id": {
             "description": "The identifier of the contract.",
+            "type": "string"
+          },
+          "sender": {
+            "description": "The account address of the transaction sender.",
             "type": "string"
           },
           "source": {
@@ -1166,6 +1174,10 @@
       "ContractCall": {
         "description": "An AlgoClarity contract call.",
         "properties": {
+          "address": {
+            "description": "The contract address to be assigned to the contract.",
+            "type": "string"
+          },
           "args": {
             "description": "The arguments to pass into the function call.",
             "type": "string"
@@ -1176,6 +1188,10 @@
           },
           "id": {
             "description": "The identifier of the contract from which to call the function.",
+            "type": "string"
+          },
+          "sender": {
+            "description": "The account address of the transaction sender.",
             "type": "string"
           }
         },
@@ -2671,6 +2687,20 @@
             }
           },
           {
+            "in": "query",
+            "name": "sender",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "address",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "The speculative context in which to perform the query or operation.",
             "in": "query",
             "name": "speculation",
@@ -2788,6 +2818,20 @@
             "description": "The speculative context in which to perform the query or operation.",
             "in": "query",
             "name": "speculation",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sender",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "address",
             "schema": {
               "type": "string"
             }
