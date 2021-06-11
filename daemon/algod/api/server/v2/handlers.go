@@ -254,9 +254,13 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 	buf.ReadFrom(ctx.Request().Body)
 
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	args := kalgo.InitArgs{Name: id, Source: buf.String()}
-
-	if err := kalgo.Init(kenv, args); err != nil {
+	cmd := kalgo.InitCmd{
+		Id:      id,
+		Source:  buf.String(),
+		Address: params.Address,
+		Sender:  params.Sender,
+	}
+	if err := cmd.Run(kenv); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -279,21 +283,19 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
 
-	kenv := kalgoEnv(ctx.Request(), speculation)
-
 	args := ""
 	if params.Args != nil {
 		args = *params.Args
 	}
-	fn := kalgo.CallArgs{
-		ProgramName: id,
-		Name:        function,
-		Args:        args,
-		Sender:      params.Sender,
-		Address:     params.Address,
+	kenv := kalgoEnv(ctx.Request(), speculation)
+	cmd := kalgo.CallCmd{
+		Id:       id,
+		Function: function,
+		Args:     args,
+		Sender:   params.Sender,
+		Address:  params.Address,
 	}
-
-	if err := kalgo.Call(kenv, fn); err != nil {
+	if err := cmd.Run(kenv); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -303,7 +305,7 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 	})
 }
 
-func decodeBatchExecuteBody(data []byte) ([]kalgo.Command, error) {
+func decodeBatchExecuteBody(data []byte) ([]kalgo.Cmd, error) {
 	var batch []interface{}
 	if err := decode(protocol.JSONHandle, data, &batch); err != nil {
 		return nil, err
@@ -312,7 +314,7 @@ func decodeBatchExecuteBody(data []byte) ([]kalgo.Command, error) {
 	// TODO[zach]: Support sender/address here.
 
 	// FIXME[zach]: Need to find out how to handle heterogeneous lists... (And apparently, oneOf is not actually supported?)
-	ret := make([]kalgo.Command, len(batch))
+	ret := make([]kalgo.Cmd, len(batch))
 	for i, el := range batch {
 		elmap, ok := el.(map[interface{}]interface{})
 		if !ok {
@@ -328,11 +330,9 @@ func decodeBatchExecuteBody(data []byte) ([]kalgo.Command, error) {
 			if !ok {
 				return nil, errors.New("could not extract program source")
 			}
-			ret[i] = kalgo.Command{
-				InitArgs: &kalgo.InitArgs{
-					Name:   id,
-					Source: source,
-				},
+			ret[i] = &kalgo.InitCmd{
+				Id:     id,
+				Source: source,
 			}
 		} else {
 			id, ok := elmap["id"].(string)
@@ -347,12 +347,10 @@ func decodeBatchExecuteBody(data []byte) ([]kalgo.Command, error) {
 			if !ok {
 				return nil, errors.New("could not extract function args")
 			}
-			ret[i] = kalgo.Command{
-				CallArgs: &kalgo.CallArgs{
-					ProgramName: id,
-					Name:        name,
-					Args:        args,
-				},
+			ret[i] = &kalgo.CallCmd{
+				Id:       id,
+				Function: name,
+				Args:     args,
 			}
 		}
 	}
@@ -384,11 +382,11 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	}
 
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	err = kalgo.BatchExecute(kenv, batch)
-	if err != nil {
-		return internalError(ctx, err, err.Error(), v2.Log)
+	for _, cmd := range batch {
+		if err := cmd.Run(kenv); err != nil {
+			return internalError(ctx, err, err.Error(), v2.Log)
+		}
 	}
-
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
