@@ -49,6 +49,8 @@ import (
 
 const maxTealSourceBytes = 1e5
 const maxTealDryrunBytes = 1e5
+const maxAlgoClaritySourceBytes = 1e5
+const maxAlgoClarityBatchBytes = 1e5
 
 // Handlers is an implementation to the V2 route handler interface defined by the generated code.
 type Handlers struct {
@@ -224,6 +226,15 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 	})
 }
 
+func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
+	return kalgo.Env{
+		AlgodAddress:     req.Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
+		AlgodToken:       req.Header.Get("X-Algo-API-Token"),
+		SpeculationToken: speculation,
+		SourcePrefix:     "/Users/zach/testnet-data/clarity/" + speculation,
+	}
+}
+
 // CreateContract creates an AlgoClarity contract.
 // (POST /v2/contract/{id})
 func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated.CreateContractParams) error {
@@ -236,19 +247,14 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 	if err != nil {
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
+
 	buf := new(bytes.Buffer)
+	ctx.Request().Body = http.MaxBytesReader(nil, ctx.Request().Body, maxAlgoClaritySourceBytes)
 	buf.ReadFrom(ctx.Request().Body)
 
-	kenv := kalgo.Env{
-		AlgodAddress: ctx.Request().Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
-		AlgodToken: ctx.Request().Header.Get("X-Algo-API-Token"),
-		SpeculationToken: *params.Speculation,
-		SourcePrefix: "/Users/zach/testnet-data/clarity/" + speculation,
-	}
-	pgm := kalgo.Program{
-		Name: id,
-		Source: buf.Bytes(),
-	}
+	kenv := kalgoEnv(ctx.Request(), speculation)
+	pgm := kalgo.Program{Name: id, Source: buf.String()}
+
 	if err := kalgo.Init(kenv, pgm); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
@@ -275,14 +281,63 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 	if err != nil {
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
-	kenv := kalgo.Env{
-		AlgodAddress: ctx.Request().Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
-		AlgodToken: ctx.Request().Header.Get("X-Algo-API-Token"),
-		SpeculationToken: speculation,
-		SourcePrefix: "/Users/zach/testnet-data/clarity/" + speculation,
-	}
+	kenv := kalgoEnv(ctx.Request(), speculation)
+
 	if err := kalgo.Call(kenv, id, function, args); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
+	}
+	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
+		Base:        uint64(ledger.Latest()),
+		Checkpoints: &ledger.Checkpoints,
+		Token:       speculation,
+	})
+}
+
+// Calls a function on a previously initialized contract.
+// (POST /v2/contracts/batch)
+func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
+	if params.Speculation == nil {
+		err := errors.New("speculation token required (for now)")
+		return badRequest(ctx, err, err.Error(), v2.Log)
+	}
+	speculation := *params.Speculation
+	ledger, err := v2.Node.SpeculationLedger(speculation)
+	if err != nil {
+		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
+	}
+
+	kenv := kalgoEnv(ctx.Request(), speculation)
+
+	req := ctx.Request()
+	buf := new(bytes.Buffer)
+	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClaritySourceBytes)
+	buf.ReadFrom(req.Body)
+	data := buf.Bytes()
+
+	var batch []interface{}
+	if err := decode(protocol.JSONHandle, data, &batch); err != nil {
+		return badRequest(ctx, err, err.Error(), v2.Log)
+	}
+
+	// FIXME[zach]: Need to find out how to handle heterogeneous lists... (And apparently, oneOf is not actually supported?)
+	for _, el := range batch {
+		elmap := el.(map[interface{}]interface{})
+		if _, ok := elmap["source"]; ok {
+			pgm := kalgo.Program{
+				Name: elmap["id"].(string),
+				Source: elmap["source"].(string),
+			}
+			if err := kalgo.Init(kenv, pgm); err != nil {
+				return internalError(ctx, err, fmt.Sprintf("%v", elmap), v2.Log)
+			}
+		} else {
+			id := elmap["id"].(string)
+			fn := elmap["function"].(string)
+			args := elmap["args"].(string)
+			if err := kalgo.Call(kenv, id, fn, args); err != nil {
+				return internalError(ctx, err, err.Error(), v2.Log)
+			}
+		}
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),

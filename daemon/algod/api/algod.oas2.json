@@ -1377,8 +1377,70 @@
             "type": "string",
             "name": "args",
             "in": "query",
-            "default": "",
             "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/SpeculationResponse"
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Invalid API Token",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "default": {
+            "description": "Unknown Error"
+          }
+        }
+      }
+    },
+    "/v2/contracts/batch": {
+      "post": {
+        "description": "Executes a batch of contract initializations/calls.",
+        "consumes": [
+          "text/plain"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "summary": "Executes a batch of contract initializations/calls.",
+        "operationId": "ContractBatchExecute",
+        "parameters": [
+          {
+            "$ref": "#/parameters/speculation"
+          },
+          {
+            "type": "array",
+            "name": "batch",
+            "in": "body",
+            "required": true,
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/Contract"
+                },
+                {
+                  "$ref": "#/definitions/ContractCall"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -1689,6 +1751,47 @@
         "key-value": {
           "description": "\\[tkv\\] storage.",
           "$ref": "#/definitions/TealKeyValueStore"
+        }
+      }
+    },
+    "Contract": {
+      "description": "An AlgoClarity contract.",
+      "type": "object",
+      "required": [
+        "id",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "description": "The identifier of the contract.",
+          "type": "string"
+        },
+        "source": {
+          "description": "The source code of the contract.",
+          "type": "string"
+        }
+      }
+    },
+    "ContractCall": {
+      "description": "An AlgoClarity contract call.",
+      "type": "object",
+      "required": [
+        "id",
+        "function",
+        "args"
+      ],
+      "properties": {
+        "id": {
+          "description": "The identifier of the contract from which to call the function.",
+          "type": "string"
+        },
+        "function": {
+          "description": "The function to call in the specified contract.",
+          "type": "string"
+        },
+        "args": {
+          "description": "The arguments to pass into the function call.",
+          "type": "string"
         }
       }
     },

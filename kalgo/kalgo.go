@@ -16,7 +16,7 @@ type Env struct {
 
 type Program struct {
 	Name string
-	Source []byte
+	Source string
 }
 
 func saveToDisk(pgm Program, root string) (*os.File, error) {
@@ -34,7 +34,7 @@ func saveToDisk(pgm Program, root string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := file.Write(pgm.Source); err != nil {
+	if _, err := file.WriteString(pgm.Source); err != nil {
 		return nil, err
 	}
 	if err := file.Close(); err != nil {
