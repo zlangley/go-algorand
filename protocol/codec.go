@@ -34,6 +34,10 @@ var CodecHandle *codec.MsgpackHandle
 // with our settings (canonical, paranoid about decoding errors)
 var JSONHandle *codec.JsonHandle
 
+// JSONUnstrictHandle is used to instantiate JSON encoders and decoders
+// with less strict settings (missing fields okay)
+var JSONUnstrictHandle *codec.JsonHandle
+
 // JSONStrictHandle is the same as JSONHandle but with MapKeyAsString=true
 // for correct maps[int]interface{} encoding
 var JSONStrictHandle *codec.JsonHandle
@@ -60,6 +64,15 @@ func init() {
 	JSONHandle.RecursiveEmptyCheck = true
 	JSONHandle.Indent = 2
 	JSONHandle.HTMLCharsAsIs = true
+
+	// FIXME[zach]: I doubt we want to encourage this behavior, so here is probably the wrong place for this.
+	JSONUnstrictHandle = new(codec.JsonHandle)
+	JSONUnstrictHandle.ErrorIfNoField = false
+	JSONUnstrictHandle.ErrorIfNoArrayExpand = JSONHandle.ErrorIfNoArrayExpand
+	JSONUnstrictHandle.Canonical = JSONHandle.Canonical
+	JSONUnstrictHandle.RecursiveEmptyCheck = JSONHandle.RecursiveEmptyCheck
+	JSONUnstrictHandle.Indent = JSONHandle.Indent
+	JSONUnstrictHandle.HTMLCharsAsIs = JSONHandle.HTMLCharsAsIs
 
 	JSONStrictHandle = new(codec.JsonHandle)
 	JSONStrictHandle.ErrorIfNoField = JSONHandle.ErrorIfNoField

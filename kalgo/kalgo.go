@@ -90,4 +90,3 @@ func command(env Env, subcmd string, args ...string) *exec.Cmd {
 	)
 	return cmd
 }
-

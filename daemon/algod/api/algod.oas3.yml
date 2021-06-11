@@ -1122,49 +1122,45 @@
         "title": "BuildVersion contains the current algod build version information.",
         "type": "object"
       },
-      "Contract": {
-        "description": "An AlgoClarity contract.",
-        "properties": {
-          "address": {
-            "description": "The contract address to be assigned to the contract.",
-            "type": "string"
-          },
-          "id": {
-            "description": "The identifier of the contract.",
-            "type": "string"
-          },
-          "sender": {
-            "description": "The account address of the transaction sender.",
-            "type": "string"
-          },
-          "source": {
-            "description": "The source code of the contract.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "source"
-        ],
-        "type": "object"
-      },
       "ContractCall": {
-        "description": "An AlgoClarity contract call.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ContractCommand"
+          },
+          {
+            "properties": {
+              "args": {
+                "description": "The arguments to pass into the function call.",
+                "type": "string"
+              },
+              "function": {
+                "description": "The function to call in the specified contract.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "args",
+              "function"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ContractCommand": {
+        "discriminator": {
+          "propertyName": "command"
+        },
         "properties": {
           "address": {
             "description": "The contract address to be assigned to the contract.",
             "type": "string"
           },
-          "args": {
-            "description": "The arguments to pass into the function call.",
-            "type": "string"
-          },
-          "function": {
-            "description": "The function to call in the specified contract.",
+          "command": {
+            "description": "The command; either 'init' or 'call'.",
             "type": "string"
           },
           "id": {
-            "description": "The identifier of the contract from which to call the function.",
+            "description": "The program identifier.",
             "type": "string"
           },
           "sender": {
@@ -1173,11 +1169,29 @@
           }
         },
         "required": [
-          "args",
-          "function",
+          "command",
           "id"
         ],
         "type": "object"
+      },
+      "ContractInit": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ContractCommand"
+          },
+          {
+            "properties": {
+              "source": {
+                "description": "The source code of the contract.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "DryrunRequest": {
         "description": "Request data type for dryrun endpoint. Given the Transactions and simulated ledger state upload, run TEAL scripts and return debugging information.",
@@ -2574,7 +2588,11 @@
         ],
         "requestBody": {
           "content": {
-            "text/plain": {}
+            "text/plain": {
+              "schema": {
+                "type": "array"
+              }
+            }
           },
           "required": true
         },

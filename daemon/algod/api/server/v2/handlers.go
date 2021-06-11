@@ -19,6 +19,7 @@ package v2
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -305,53 +306,43 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 	})
 }
 
-func decodeBatchExecuteBody(data []byte) ([]kalgo.Cmd, error) {
-	var batch []interface{}
-	if err := decode(protocol.JSONHandle, data, &batch); err != nil {
+type cmdDiscriminator struct {
+	Command string `json:"command"`
+}
+
+func decodeBatch(data []byte) ([]interface{}, error) {
+	// FIXME[zach]: I haven't been able to get go-swagger to generate the right interface for a
+	// heterogeneous list (perhaps we are using an old version?). The parsing is kind of gnarly,
+	// but is intended to somewhat mirror what go-swagger supposedly expects. The data is decode twice.
+	// First we decode using the `cmdDiscriminator` helper, which just extracts the "command" discriminator
+	// field. This should be a bit better than just decoding to map[interface{}]interface{}, which would
+	// not enforce the presence of the "command" key. The second decoding just decodes the array, and leaves
+	// the items as json.RawMessage. Looping over the
+	var discrims []cmdDiscriminator
+	if err := decode(protocol.JSONUnstrictHandle, data, &discrims); err != nil {
 		return nil, err
 	}
-
-	// TODO[zach]: Support sender/address here.
-
-	// FIXME[zach]: Need to find out how to handle heterogeneous lists... (And apparently, oneOf is not actually supported?)
-	ret := make([]kalgo.Cmd, len(batch))
-	for i, el := range batch {
-		elmap, ok := el.(map[interface{}]interface{})
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("expected map[interface{}]interface{}, got %T", elmap))
-		}
-
-		if source, ok := elmap["source"]; ok {
-			id, ok := elmap["id"].(string)
-			if !ok {
-				return nil, errors.New("could not extract program id")
+	var rawCmds []json.RawMessage
+	if err := decode(protocol.JSONHandle, data, &rawCmds); err != nil {
+		return nil, err
+	}
+	ret := make([]interface{}, len(rawCmds))
+	for i, discrim := range discrims {
+		switch discrim.Command {
+		case "init":
+			var init generated.ContractInit
+			if err := decode(protocol.JSONHandle, rawCmds[i], &init); err != nil {
+				return nil, err
 			}
-			source, ok := source.(string)
-			if !ok {
-				return nil, errors.New("could not extract program source")
+			ret[i] = init
+		case "call":
+			var call generated.ContractCall
+			if err := decode(protocol.JSONHandle, rawCmds[i], &call); err != nil {
+				return nil, err
 			}
-			ret[i] = &kalgo.InitCmd{
-				Id:     id,
-				Source: source,
-			}
-		} else {
-			id, ok := elmap["id"].(string)
-			if !ok {
-				return nil, errors.New("could not extract function program id")
-			}
-			name, ok := elmap["function"].(string)
-			if !ok {
-				return nil, errors.New("could not extract function name")
-			}
-			args, ok := elmap["args"].(string)
-			if !ok {
-				return nil, errors.New("could not extract function args")
-			}
-			ret[i] = &kalgo.CallCmd{
-				Id:       id,
-				Function: name,
-				Args:     args,
-			}
+			ret[i] = call
+		default:
+			return nil, errors.New(fmt.Sprintf("item in batch missing command descriminator (index %d)", i))
 		}
 	}
 	return ret, nil
@@ -376,13 +367,31 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	buf.ReadFrom(req.Body)
 	data := buf.Bytes()
 
-	batch, err := decodeBatchExecuteBody(data)
+	gcmds, err := decodeBatch(data)
 	if err != nil {
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
-
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	for _, cmd := range batch {
+	for _, gcmd := range gcmds {
+		var cmd kalgo.Cmd
+		if init, ok := gcmd.(generated.ContractInit); ok {
+			cmd = &kalgo.InitCmd{
+				Id: init.Id,
+				Source: init.Source,
+				Sender: init.Sender,
+				Address: init.Address,
+			}
+		} else if call, ok := gcmd.(generated.ContractCall); ok {
+			cmd = &kalgo.CallCmd{
+				Id: call.Id,
+				Function: call.Function,
+				Sender: call.Sender,
+				Address: call.Address,
+			}
+		} else {
+			err = errors.New("unknown command type returned from decodeBatch()")
+			return internalError(ctx, err, err.Error(), v2.Log)
+		}
 		if err := cmd.Run(kenv); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
