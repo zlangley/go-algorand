@@ -252,6 +252,29 @@ type BuildVersion struct {
 	Minor       uint64 `json:"minor"`
 }
 
+// Contract defines model for Contract.
+type Contract struct {
+
+	// The identifier of the contract.
+	Id string `json:"id"`
+
+	// The source code of the contract.
+	Source string `json:"source"`
+}
+
+// ContractCall defines model for ContractCall.
+type ContractCall struct {
+
+	// The arguments to pass into the function call.
+	Args string `json:"args"`
+
+	// The function to call in the specified contract.
+	Function string `json:"function"`
+
+	// The identifier of the contract from which to call the function.
+	Id string `json:"id"`
+}
+
 // DryrunRequest defines model for DryrunRequest.
 type DryrunRequest struct {
 	Accounts []Account     `json:"accounts"`
@@ -713,6 +736,13 @@ type GetProofParams struct {
 
 	// Configures whether the response object is JSON or MessagePack encoded.
 	Format *string `json:"format,omitempty"`
+}
+
+// ContractBatchExecuteParams defines parameters for ContractBatchExecute.
+type ContractBatchExecuteParams struct {
+
+	// The speculative context in which to perform the query or operation.
+	Speculation *string `json:"speculation,omitempty"`
 }
 
 // CreateContractParams defines parameters for CreateContract.
