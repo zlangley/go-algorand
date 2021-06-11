@@ -252,39 +252,43 @@ type BuildVersion struct {
 	Minor       uint64 `json:"minor"`
 }
 
-// Contract defines model for Contract.
-type Contract struct {
-
-	// The contract address to be assigned to the contract.
-	Address *string `json:"address,omitempty"`
-
-	// The identifier of the contract.
-	Id string `json:"id"`
-
-	// The account address of the transaction sender.
-	Sender *string `json:"sender,omitempty"`
-
-	// The source code of the contract.
-	Source string `json:"source"`
-}
-
 // ContractCall defines model for ContractCall.
 type ContractCall struct {
-
-	// The contract address to be assigned to the contract.
-	Address *string `json:"address,omitempty"`
+	// Embedded struct due to allOf(#/components/schemas/ContractCommand)
+	ContractCommand
+	// Embedded fields due to inline allOf schema
 
 	// The arguments to pass into the function call.
 	Args string `json:"args"`
 
 	// The function to call in the specified contract.
 	Function string `json:"function"`
+}
 
-	// The identifier of the contract from which to call the function.
+// ContractCommand defines model for ContractCommand.
+type ContractCommand struct {
+
+	// The contract address to be assigned to the contract.
+	Address *string `json:"address,omitempty"`
+
+	// The command; either 'init' or 'call'.
+	Command string `json:"command"`
+
+	// The program identifier.
 	Id string `json:"id"`
 
 	// The account address of the transaction sender.
 	Sender *string `json:"sender,omitempty"`
+}
+
+// ContractInit defines model for ContractInit.
+type ContractInit struct {
+	// Embedded struct due to allOf(#/components/schemas/ContractCommand)
+	ContractCommand
+	// Embedded fields due to inline allOf schema
+
+	// The source code of the contract.
+	Source string `json:"source"`
 }
 
 // DryrunRequest defines model for DryrunRequest.

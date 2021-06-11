@@ -1451,14 +1451,14 @@
             "$ref": "#/parameters/speculation"
           },
           {
-            "type": "array",
             "name": "batch",
             "in": "body",
             "required": true,
-            "items": {
-              "oneOf": [
+            "schema": {
+              "type": "array",
+              "items": [
                 {
-                  "$ref": "#/definitions/Contract"
+                  "$ref": "#/definitions/ContractInit"
                 },
                 {
                   "$ref": "#/definitions/ContractCall"
@@ -1661,8 +1661,8 @@
       "properties": {
         "amount": {
           "description": "\\[a\\] number of units held.",
-           "type": "integer",
-           "x-algorand-format": "uint64"
+          "type": "integer",
+          "x-algorand-format": "uint64"
         },
         "asset-id": {
           "description": "Asset ID of the holding.",
@@ -1797,21 +1797,21 @@
         }
       }
     },
-    "Contract": {
-      "description": "An AlgoClarity contract.",
+    "ContractCommand": {
       "type": "object",
+      "discriminator": "command",
       "required": [
         "id",
-        "source"
+        "command"
       ],
       "properties": {
         "id": {
-          "description": "The identifier of the contract.",
-          "type": "string"
+          "type": "string",
+          "description": "The program identifier."
         },
-        "source": {
-          "description": "The source code of the contract.",
-          "type": "string"
+        "command": {
+          "type": "string",
+          "description": "The command; either 'init' or 'call'."
         },
         "sender": {
           "description": "The account address of the transaction sender.",
@@ -1823,36 +1823,46 @@
         }
       }
     },
-    "ContractCall": {
-      "description": "An AlgoClarity contract call.",
-      "type": "object",
-      "required": [
-        "id",
-        "function",
-        "args"
-      ],
-      "properties": {
-        "id": {
-          "description": "The identifier of the contract from which to call the function.",
-          "type": "string"
+    "ContractInit": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/ContractCommand"
         },
-        "function": {
-          "description": "The function to call in the specified contract.",
-          "type": "string"
-        },
-        "args": {
-          "description": "The arguments to pass into the function call.",
-          "type": "string"
-        },
-        "sender": {
-          "description": "The account address of the transaction sender.",
-          "type": "string"
-        },
-        "address": {
-          "description": "The contract address to be assigned to the contract.",
-          "type": "string"
+        {
+          "required": [
+            "source"
+          ],
+          "properties": {
+            "source": {
+              "description": "The source code of the contract.",
+              "type": "string"
+            }
+          }
         }
-      }
+      ]
+    },
+    "ContractCall": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/ContractCommand"
+        },
+        {
+          "required": [
+            "function",
+            "args"
+          ],
+          "properties": {
+            "function": {
+              "description": "The function to call in the specified contract.",
+              "type": "string"
+            },
+            "args": {
+              "description": "The arguments to pass into the function call.",
+              "type": "string"
+            }
+          }
+        }
+      ]
     },
     "TealKeyValueStore": {
       "description": "Represents a key-value store for use in an application.",
