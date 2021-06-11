@@ -1302,6 +1302,18 @@
             "required": true
           },
           {
+            "type": "string",
+            "name": "sender",
+            "in": "query",
+            "required": false
+          },
+          {
+            "type": "string",
+            "name": "address",
+            "in": "query",
+            "required": false
+          },
+          {
             "$ref": "#/parameters/speculation"
           },
           {
@@ -1372,6 +1384,18 @@
           },
           {
             "$ref": "#/parameters/speculation"
+          },
+          {
+            "type": "string",
+            "name": "sender",
+            "in": "query",
+            "required": false
+          },
+          {
+            "type": "string",
+            "name": "address",
+            "in": "query",
+            "required": false
           },
           {
             "type": "string",
@@ -1769,6 +1793,14 @@
         "source": {
           "description": "The source code of the contract.",
           "type": "string"
+        },
+        "sender": {
+          "description": "The account address of the transaction sender.",
+          "type": "string"
+        },
+        "address": {
+          "description": "The contract address to be assigned to the contract.",
+          "type": "string"
         }
       }
     },
@@ -1791,6 +1823,14 @@
         },
         "args": {
           "description": "The arguments to pass into the function call.",
+          "type": "string"
+        },
+        "sender": {
+          "description": "The account address of the transaction sender.",
+          "type": "string"
+        },
+        "address": {
+          "description": "The contract address to be assigned to the contract.",
           "type": "string"
         }
       }

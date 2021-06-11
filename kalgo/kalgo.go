@@ -14,29 +14,18 @@ type Env struct {
 	SourcePrefix     string
 }
 
-type Program struct {
-	Name   string
-	Source string
-}
-
-type FunctionCall struct {
-	ProgramName string
-	Name        string
-	Args        string
-}
-
-func saveToDisk(pgm Program, root string) (*os.File, error) {
-	dirpath := filepath.Join(root, pgm.Name)
+func saveToDisk(id, source, root string) (*os.File, error) {
+	dirpath := filepath.Join(root, id)
 	err := os.MkdirAll(dirpath, 0755)
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dirpath, fmt.Sprintf("%s.clar", pgm.Name))
+	path := filepath.Join(dirpath, fmt.Sprintf("%s.clar", id))
 	file, err := os.Create(path)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := file.WriteString(pgm.Source); err != nil {
+	if _, err := file.WriteString(source); err != nil {
 		return nil, err
 	}
 	if err := file.Close(); err != nil {
@@ -45,16 +34,15 @@ func saveToDisk(pgm Program, root string) (*os.File, error) {
 	return file, err
 }
 
-func Init(env Env, pgm Program) error {
-	file, err := saveToDisk(pgm, env.SourcePrefix)
-	if err != nil {
-		return err
+func kalgoBaseArgs(env Env, sender *string, address *string) []string {
+	args := []string{"--prefix", env.SourcePrefix}
+	if sender != nil {
+		args = append(args, "--sender", *sender)
 	}
-	return kalgo(env, "init", file.Name())
-}
-
-func Call(env Env, fn FunctionCall) error {
-	return kalgo(env, "call", fmt.Sprintf(".%s", fn.ProgramName), fn.Name, fn.Args)
+	if address != nil {
+		args = append(args, "--address", *address)
+	}
+	return args
 }
 
 func kalgo(env Env, subcmd string, args ...string) error {
@@ -73,20 +61,51 @@ func kalgo(env Env, subcmd string, args ...string) error {
 	return cmd.Run()
 }
 
-type BatchItem struct {
-	Program      *Program
-	FunctionCall *FunctionCall
+type InitArgs struct {
+	Name    string
+	Source  string
+	Sender  *string
+	Address *string
+}
+
+func Init(env Env, args InitArgs) error {
+	file, err := saveToDisk(args.Name, args.Source, env.SourcePrefix)
+	if err != nil {
+		return err
+	}
+	kargs := kalgoBaseArgs(env, args.Sender, args.Address)
+	kargs = append(kargs, file.Name())
+	return kalgo(env, "init", kargs...)
+}
+
+type CallArgs struct {
+	ProgramName string
+	Name        string
+	Args        string
+	Sender      *string
+	Address     *string
+}
+
+func Call(env Env, args CallArgs) error {
+	kargs := kalgoBaseArgs(env, args.Sender, args.Address)
+	kargs = append(kargs, fmt.Sprintf(".%s", args.ProgramName), args.Name, args.Args)
+	return kalgo(env, "call", kargs...)
+}
+
+type Command struct {
+	InitArgs *InitArgs
+	CallArgs *CallArgs
 }
 
 // FIXME: this probably doesn't belong here?
-func BatchExecute(env Env, batch []BatchItem) error {
+func BatchExecute(env Env, batch []Command) error {
 	for _, item := range batch {
-		if pgm := item.Program; pgm != nil {
-			if err := Init(env, *pgm); err != nil {
+		if args := item.InitArgs; args != nil {
+			if err := Init(env, *args); err != nil {
 				return err
 			}
-		} else if fn := item.FunctionCall; fn != nil {
-			if err := Call(env, *fn); err != nil {
+		} else if args := item.CallArgs; args != nil {
+			if err := Call(env, *args); err != nil {
 				return err
 			}
 		}

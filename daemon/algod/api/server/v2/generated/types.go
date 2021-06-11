@@ -240,8 +240,14 @@ type BuildVersion struct {
 // Contract defines model for Contract.
 type Contract struct {
 
+	// The contract address to be assigned to the contract.
+	Address *string `json:"address,omitempty"`
+
 	// The identifier of the contract.
 	Id string `json:"id"`
+
+	// The account address of the transaction sender.
+	Sender *string `json:"sender,omitempty"`
 
 	// The source code of the contract.
 	Source string `json:"source"`
@@ -249,6 +255,9 @@ type Contract struct {
 
 // ContractCall defines model for ContractCall.
 type ContractCall struct {
+
+	// The contract address to be assigned to the contract.
+	Address *string `json:"address,omitempty"`
 
 	// The arguments to pass into the function call.
 	Args string `json:"args"`
@@ -258,6 +267,9 @@ type ContractCall struct {
 
 	// The identifier of the contract from which to call the function.
 	Id string `json:"id"`
+
+	// The account address of the transaction sender.
+	Sender *string `json:"sender,omitempty"`
 }
 
 // DryrunRequest defines model for DryrunRequest.
@@ -732,6 +744,8 @@ type ContractBatchExecuteParams struct {
 
 // CreateContractParams defines parameters for CreateContract.
 type CreateContractParams struct {
+	Sender  *string `json:"sender,omitempty"`
+	Address *string `json:"address,omitempty"`
 
 	// The speculative context in which to perform the query or operation.
 	Speculation *string `json:"speculation,omitempty"`
@@ -742,6 +756,8 @@ type CallContractParams struct {
 
 	// The speculative context in which to perform the query or operation.
 	Speculation *string `json:"speculation,omitempty"`
+	Sender      *string `json:"sender,omitempty"`
+	Address     *string `json:"address,omitempty"`
 	Args        *string `json:"args,omitempty"`
 }
 
