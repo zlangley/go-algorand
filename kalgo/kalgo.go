@@ -8,15 +8,21 @@ import (
 )
 
 type Env struct {
-	AlgodAddress string
-	AlgodToken string
+	AlgodAddress     string
+	AlgodToken       string
 	SpeculationToken string
-	SourcePrefix string
+	SourcePrefix     string
 }
 
 type Program struct {
-	Name string
+	Name   string
 	Source string
+}
+
+type FunctionCall struct {
+	ProgramName string
+	Name        string
+	Args        string
 }
 
 func saveToDisk(pgm Program, root string) (*os.File, error) {
@@ -52,21 +58,41 @@ func Init(env Env, pgm Program) error {
 	cmd := exec.Command("./kalgo", "init", "--prefix", env.SourcePrefix, file.Name())
 	cmd.Dir = os.Getenv("KALGO_PREFIX")
 	cmd.Env = append(os.Environ(),
-		"ALGOD_ADDRESS=" + env.AlgodAddress,
-		"ALGOD_TOKEN=" + env.AlgodToken,
-		"SPECULATION_TOKEN=" + env.SpeculationToken,
+		"ALGOD_ADDRESS="+env.AlgodAddress,
+		"ALGOD_TOKEN="+env.AlgodToken,
+		"SPECULATION_TOKEN="+env.SpeculationToken,
 	)
 	return cmd.Run()
 }
 
-
-func Call(env Env, id string, fn string, args string) error {
-	cmd := exec.Command("./kalgo", "call", "--prefix", env.SourcePrefix, fmt.Sprintf(".%s", id), fn, args)
+func Call(env Env, fn FunctionCall) error {
+	cmd := exec.Command("./kalgo", "call", "--prefix", env.SourcePrefix, fmt.Sprintf(".%s", fn.ProgramName), fn.Name, fn.Args)
 	cmd.Dir = os.Getenv("KALGO_PREFIX")
 	cmd.Env = append(os.Environ(),
-		"ALGOD_ADDRESS=" + env.AlgodAddress,
-		"ALGOD_TOKEN=" + env.AlgodToken,
-		"SPECULATION_TOKEN=" + env.SpeculationToken,
+		"ALGOD_ADDRESS="+env.AlgodAddress,
+		"ALGOD_TOKEN="+env.AlgodToken,
+		"SPECULATION_TOKEN="+env.SpeculationToken,
 	)
 	return cmd.Run()
+}
+
+type BatchItem struct {
+	Program      *Program
+	FunctionCall *FunctionCall
+}
+
+// FIXME: this probably doesn't belong here?
+func BatchExecute(env Env, batch []BatchItem) error {
+	for _, item := range batch {
+		if pgm := item.Program; pgm != nil {
+			if err := Init(env, *pgm); err != nil {
+				return err
+			}
+		} else if fn := item.FunctionCall; fn != nil {
+			if err := Call(env, *fn); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

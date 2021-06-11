@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -50,7 +51,7 @@ import (
 const maxTealSourceBytes = 1e5
 const maxTealDryrunBytes = 1e5
 const maxAlgoClaritySourceBytes = 1e5
-const maxAlgoClarityBatchBytes = 1e5
+const maxAlgoClarityBatchBytes = 1e6
 
 // Handlers is an implementation to the V2 route handler interface defined by the generated code.
 type Handlers struct {
@@ -231,7 +232,7 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 		AlgodAddress:     req.Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
 		AlgodToken:       req.Header.Get("X-Algo-API-Token"),
 		SpeculationToken: speculation,
-		SourcePrefix:     "/Users/zach/testnet-data/clarity/" + speculation,
+		SourcePrefix:     filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation),
 	}
 }
 
@@ -273,17 +274,24 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
 	speculation := *params.Speculation
-	args := ""
-	if params.Args != nil {
-		args = *params.Args
-	}
 	ledger, err := v2.Node.SpeculationLedger(speculation)
 	if err != nil {
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
+
 	kenv := kalgoEnv(ctx.Request(), speculation)
 
-	if err := kalgo.Call(kenv, id, function, args); err != nil {
+	args := ""
+	if params.Args != nil {
+		args = *params.Args
+	}
+	fn := kalgo.FunctionCall{
+		ProgramName: id,
+		Name:        function,
+		Args:        args,
+	}
+
+	if err := kalgo.Call(kenv, fn); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -291,6 +299,60 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
 	})
+}
+
+func decodeBatchExecuteBody(data []byte) ([]kalgo.BatchItem, error) {
+	var batch []interface{}
+	if err := decode(protocol.JSONHandle, data, &batch); err != nil {
+		return nil, err
+	}
+
+	// FIXME[zach]: Need to find out how to handle heterogeneous lists... (And apparently, oneOf is not actually supported?)
+	ret := make([]kalgo.BatchItem, len(batch))
+	for i, el := range batch {
+		elmap, ok := el.(map[interface{}]interface{})
+		if !ok {
+			return nil, errors.New(fmt.Sprintf("expected map[interface{}]interface{}, got %T", elmap))
+		}
+
+		if source, ok := elmap["source"]; ok {
+			id, ok := elmap["id"].(string)
+			if !ok {
+				return nil, errors.New("could not extract program id")
+			}
+			source, ok := source.(string)
+			if !ok {
+				return nil, errors.New("could not extract program source")
+			}
+			ret[i] = kalgo.BatchItem{
+				Program: &kalgo.Program{
+					Name:   id,
+					Source: source,
+				},
+			}
+		} else {
+			id, ok := elmap["id"].(string)
+			if !ok {
+				return nil, errors.New("could not extract function program id")
+			}
+			name, ok := elmap["function"].(string)
+			if !ok {
+				return nil, errors.New("could not extract function name")
+			}
+			args, ok := elmap["args"].(string)
+			if !ok {
+				return nil, errors.New("could not extract function args")
+			}
+			ret[i] = kalgo.BatchItem{
+				FunctionCall: &kalgo.FunctionCall{
+					ProgramName: id,
+					Name:        name,
+					Args:        args,
+				},
+			}
+		}
+	}
+	return ret, nil
 }
 
 // Calls a function on a previously initialized contract.
@@ -306,39 +368,23 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
 
-	kenv := kalgoEnv(ctx.Request(), speculation)
-
 	req := ctx.Request()
 	buf := new(bytes.Buffer)
-	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClaritySourceBytes)
+	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClarityBatchBytes)
 	buf.ReadFrom(req.Body)
 	data := buf.Bytes()
 
-	var batch []interface{}
-	if err := decode(protocol.JSONHandle, data, &batch); err != nil {
+	batch, err := decodeBatchExecuteBody(data)
+	if err != nil {
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
 
-	// FIXME[zach]: Need to find out how to handle heterogeneous lists... (And apparently, oneOf is not actually supported?)
-	for _, el := range batch {
-		elmap := el.(map[interface{}]interface{})
-		if _, ok := elmap["source"]; ok {
-			pgm := kalgo.Program{
-				Name: elmap["id"].(string),
-				Source: elmap["source"].(string),
-			}
-			if err := kalgo.Init(kenv, pgm); err != nil {
-				return internalError(ctx, err, fmt.Sprintf("%v", elmap), v2.Log)
-			}
-		} else {
-			id := elmap["id"].(string)
-			fn := elmap["function"].(string)
-			args := elmap["args"].(string)
-			if err := kalgo.Call(kenv, id, fn, args); err != nil {
-				return internalError(ctx, err, err.Error(), v2.Log)
-			}
-		}
+	kenv := kalgoEnv(ctx.Request(), speculation)
+	err = kalgo.BatchExecute(kenv, batch)
+	if err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
 	}
+
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
@@ -351,7 +397,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, operation string) error {
 	if operation == "delete" {
 		v2.Node.DestroySpeculationLedger(speculation)
-		os.RemoveAll("/Users/zach/testnet-data/clarity/" + speculation)
+		os.RemoveAll(filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation))
 		// XXX: return something more reasonable
 		return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 			Base:  0,
