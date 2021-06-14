@@ -1456,14 +1456,9 @@
             "required": true,
             "schema": {
               "type": "array",
-              "items": [
-                {
-                  "$ref": "#/definitions/ContractInit"
-                },
-                {
-                  "$ref": "#/definitions/ContractCall"
-                }
-              ]
+              "items": {
+                "$ref": "#/definitions/ContractCommand"
+              }
             }
           }
         ],

@@ -19,7 +19,10 @@ package v2
 import (
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 	"strings"
 
 	"github.com/algorand/go-codec/codec"
@@ -262,4 +265,48 @@ func convertToDeltas(txn node.TxnWithStatus) (*[]generated.AccountStateDelta, *g
 	}
 
 	return localStateDelta, stateDeltaToStateDelta(txn.ApplyData.EvalDelta.GlobalDelta)
+}
+
+func filecopy(src, dst string) error {
+	stat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	contents, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(dst, contents, stat.Mode())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func dircopy(src string, dst string) error {
+	srcinfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(dst, srcinfo.Mode()); err != nil {
+		return err
+	}
+	fds, err := ioutil.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, fd := range fds {
+		cursrc := path.Join(src, fd.Name())
+		curdst := path.Join(dst, fd.Name())
+
+		if fd.IsDir() {
+			err = dircopy(cursrc, curdst)
+		} else {
+			err = filecopy(cursrc, curdst)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

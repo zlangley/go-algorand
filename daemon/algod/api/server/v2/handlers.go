@@ -27,7 +27,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -233,7 +235,7 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 		AlgodAddress:     req.Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
 		AlgodToken:       req.Header.Get("X-Algo-API-Token"),
 		SpeculationToken: speculation,
-		SourcePrefix:     filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation),
+		SourcePrefix:     filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation, "current"),
 	}
 }
 
@@ -255,13 +257,13 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 	buf.ReadFrom(ctx.Request().Body)
 
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	cmd := kalgo.InitCmd{
+	cmd := &kalgo.InitCmd{
 		Id:      id,
 		Source:  buf.String(),
 		Address: params.Address,
 		Sender:  params.Sender,
 	}
-	if err := cmd.Run(kenv); err != nil {
+	if err = executeVM(kenv, cmd, ledger); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -289,14 +291,14 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		args = *params.Args
 	}
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	cmd := kalgo.CallCmd{
+	cmd := &kalgo.CallCmd{
 		Id:       id,
 		Function: function,
 		Args:     args,
 		Sender:   params.Sender,
 		Address:  params.Address,
 	}
-	if err := cmd.Run(kenv); err != nil {
+	if err = executeVM(kenv, cmd, ledger); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -392,7 +394,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 			err = errors.New("unknown command type returned from decodeBatch()")
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		if err := cmd.Run(kenv); err != nil {
+		if err = executeVM(kenv, cmd, ledger); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 	}
@@ -401,6 +403,19 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
 	})
+}
+
+func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger) error {
+	if err := cmd.Run(kenv); err != nil {
+		return err
+	}
+	if err := ledger.Checkpoint(); err != nil {
+		return err
+	}
+	if err := dircopy(kenv.SourcePrefix, path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)))); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Perform operations on a speculation object.
