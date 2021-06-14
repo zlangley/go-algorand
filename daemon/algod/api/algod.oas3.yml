@@ -2613,6 +2613,9 @@
           "content": {
             "text/plain": {
               "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ContractCommand"
+                },
                 "type": "array"
               }
             }
