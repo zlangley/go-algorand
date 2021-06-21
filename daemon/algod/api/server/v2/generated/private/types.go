@@ -644,6 +644,21 @@ type SpeculationResponse struct {
 	// The number of transactions preceding each checkpoint.
 	Checkpoints *[]uint64 `json:"checkpoints,omitempty"`
 
+	// The elapsed time in milliseconds spent doing DB work to handle the request
+	DbTime uint64 `json:"db_time"`
+
+	// The total elapsed time in milliseconds to handle the request
+	ElapsedTime uint64 `json:"elapsed_time"`
+
+	// The elapsed time in milliseconds spent in kalgo inits to handle the request
+	KalgoCallTime uint64 `json:"kalgo_call_time"`
+
+	// The elapsed time in milliseconds spent in kalgo calls to handle the request
+	KalgoInitTime uint64 `json:"kalgo_init_time"`
+
+	// The elapsed time in milliseconds spent in kalgo to handle the request
+	KalgoTime uint64 `json:"kalgo_time"`
+
 	// The persistent token by which the speculation can be referenced
 	Token string `json:"token"`
 }

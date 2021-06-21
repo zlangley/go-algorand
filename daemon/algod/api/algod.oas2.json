@@ -2463,7 +2463,7 @@
       "schema": {
         "description": "Specifies the base round and token for speculation execution.",
         "type": "object",
-        "required": ["base", "token"],
+        "required": ["base", "token", "elapsed_time", "kalgo_time", "kalgo_init_time", "kalgo_call_time", "db_time"],
         "properties": {
           "base": {
             "description": "The round at which speculation begins",
@@ -2479,6 +2479,26 @@
             "items": {
               "type": "integer"
             }
+          },
+          "elapsed_time": {
+            "description": "The total elapsed time in milliseconds to handle the request",
+            "type": "integer"
+          },
+          "kalgo_time": {
+            "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+            "type": "integer"
+          },
+          "kalgo_init_time": {
+            "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+            "type": "integer"
+          },
+          "kalgo_call_time": {
+            "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+            "type": "integer"
+          },
+          "db_time": {
+            "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+            "type": "integer"
           }
         }
       }

@@ -629,6 +629,26 @@
                   },
                   "type": "array"
                 },
+                "db_time": {
+                  "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+                  "type": "integer"
+                },
+                "elapsed_time": {
+                  "description": "The total elapsed time in milliseconds to handle the request",
+                  "type": "integer"
+                },
+                "kalgo_call_time": {
+                  "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+                  "type": "integer"
+                },
+                "kalgo_init_time": {
+                  "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+                  "type": "integer"
+                },
+                "kalgo_time": {
+                  "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                  "type": "integer"
+                },
                 "token": {
                   "description": "The persistent token by which the speculation can be referenced",
                   "type": "string"
@@ -636,6 +656,11 @@
               },
               "required": [
                 "base",
+                "db_time",
+                "elapsed_time",
+                "kalgo_call_time",
+                "kalgo_init_time",
+                "kalgo_time",
                 "token"
               ],
               "type": "object"
@@ -2214,6 +2239,26 @@
                       },
                       "type": "array"
                     },
+                    "db_time": {
+                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+                      "type": "integer"
+                    },
+                    "elapsed_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_call_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_init_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
@@ -2221,6 +2266,11 @@
                   },
                   "required": [
                     "base",
+                    "db_time",
+                    "elapsed_time",
+                    "kalgo_call_time",
+                    "kalgo_init_time",
+                    "kalgo_time",
                     "token"
                   ],
                   "type": "object"
@@ -2617,6 +2667,26 @@
                       },
                       "type": "array"
                     },
+                    "db_time": {
+                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+                      "type": "integer"
+                    },
+                    "elapsed_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_call_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_init_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
@@ -2624,6 +2694,11 @@
                   },
                   "required": [
                     "base",
+                    "db_time",
+                    "elapsed_time",
+                    "kalgo_call_time",
+                    "kalgo_init_time",
+                    "kalgo_time",
                     "token"
                   ],
                   "type": "object"
@@ -2737,6 +2812,26 @@
                       },
                       "type": "array"
                     },
+                    "db_time": {
+                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+                      "type": "integer"
+                    },
+                    "elapsed_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_call_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_init_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
@@ -2744,6 +2839,11 @@
                   },
                   "required": [
                     "base",
+                    "db_time",
+                    "elapsed_time",
+                    "kalgo_call_time",
+                    "kalgo_init_time",
+                    "kalgo_time",
                     "token"
                   ],
                   "type": "object"
@@ -2860,6 +2960,26 @@
                       },
                       "type": "array"
                     },
+                    "db_time": {
+                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+                      "type": "integer"
+                    },
+                    "elapsed_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_call_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_init_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
@@ -2867,6 +2987,11 @@
                   },
                   "required": [
                     "base",
+                    "db_time",
+                    "elapsed_time",
+                    "kalgo_call_time",
+                    "kalgo_init_time",
+                    "kalgo_time",
                     "token"
                   ],
                   "type": "object"
@@ -3109,6 +3234,26 @@
                       },
                       "type": "array"
                     },
+                    "db_time": {
+                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
+                      "type": "integer"
+                    },
+                    "elapsed_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_call_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_init_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
+                      "type": "integer"
+                    },
+                    "kalgo_time": {
+                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
@@ -3116,6 +3261,11 @@
                   },
                   "required": [
                     "base",
+                    "db_time",
+                    "elapsed_time",
+                    "kalgo_call_time",
+                    "kalgo_init_time",
+                    "kalgo_time",
                     "token"
                   ],
                   "type": "object"
