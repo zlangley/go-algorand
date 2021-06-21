@@ -239,6 +239,13 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 	}
 }
 
+
+var kStopwatchTotal string = "total"
+var kKalgoTotal string = "kalgo"
+var kKalgoInit string = "init"
+var kKalgoCall string = "call"
+var kDatabase string = "db"
+
 // CreateContract creates an AlgoClarity contract.
 // (POST /v2/contract/{id})
 func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated.CreateContractParams) error {
@@ -263,7 +270,7 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		Address: params.Address,
 		Sender:  params.Sender,
 	}
-	if err = executeVM(kenv, cmd, ledger); err != nil {
+	if err = executeVM(kenv, cmd, ledger, kKalgoInit); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -298,7 +305,7 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		Sender:   params.Sender,
 		Address:  params.Address,
 	}
-	if err = executeVM(kenv, cmd, ledger); err != nil {
+	if err = executeVM(kenv, cmd, ledger, kKalgoCall); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -373,10 +380,15 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	if err != nil {
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
+
+	ledger.StartStopwatch(kStopwatchTotal)
+
 	kenv := kalgoEnv(ctx.Request(), speculation)
 	for _, gcmd := range gcmds {
 		var cmd kalgo.Cmd
+		var cmdname string
 		if init, ok := gcmd.(generated.ContractInit); ok {
+			cmdname = kKalgoInit
 			cmd = &kalgo.InitCmd{
 				Id: init.Id,
 				Source: init.Source,
@@ -384,6 +396,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 				Address: init.Address,
 			}
 		} else if call, ok := gcmd.(generated.ContractCall); ok {
+			cmdname = kKalgoCall
 			cmd = &kalgo.CallCmd{
 				Id: call.Id,
 				Function: call.Function,
@@ -394,27 +407,41 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 			err = errors.New("unknown command type returned from decodeBatch()")
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		if err = executeVM(kenv, cmd, ledger); err != nil {
+		if err = executeVM(kenv, cmd, ledger, cmdname); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 	}
+	ledger.StopStopwatch(kStopwatchTotal)
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
+		ElapsedTime: ledger.ElapsedMillis(kStopwatchTotal),
+		KalgoTime: ledger.ElapsedMillis(kKalgoTotal),
+		KalgoInitTime: ledger.ElapsedMillis(kKalgoInit),
+		KalgoCallTime: ledger.ElapsedMillis(kKalgoCall),
+		DbTime: ledger.ElapsedMillis(kDatabase),
 	})
 }
 
-func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger) error {
+func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger, cmdkey string) error {
+	ledger.StartStopwatch(kKalgoTotal)
+	ledger.StartStopwatch(cmdkey)
 	if err := cmd.Run(kenv); err != nil {
 		return err
 	}
+	ledger.StopStopwatch(cmdkey)
+	ledger.StopStopwatch(kKalgoTotal)
+
 	if err := ledger.Checkpoint(); err != nil {
 		return err
 	}
+
+	ledger.StartStopwatch(kDatabase)
 	if err := dircopy(kenv.SourcePrefix, path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)))); err != nil {
 		return err
 	}
+	ledger.StopStopwatch(kDatabase)
 	return nil
 }
 

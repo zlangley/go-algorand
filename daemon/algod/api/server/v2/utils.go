@@ -327,4 +327,7 @@ func dircopy(src string, dst string) error {
 	}
 	return nil
 }
+<<<<<<< HEAD
 >>>>>>> 98ddf07a (Copy kalgo prefix on write)
+=======
+>>>>>>> 9f15ea3a (Add some basic profiling)

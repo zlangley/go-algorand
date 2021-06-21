@@ -17,7 +17,9 @@
 package data
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/data/transactions"
@@ -38,10 +40,12 @@ type SpeculationLedger struct {
 
 	Evaluator *ledger.BlockEvaluator
 	Version   protocol.ConsensusVersion
+
+	prof map[string]*Stopwatch
 }
 
 func NewSpeculationLedger(l *Ledger, rnd basics.Round) (*SpeculationLedger, error) {
-	sl := &SpeculationLedger{baseLedger: l, baseRound: rnd}
+	sl := &SpeculationLedger{baseLedger: l, baseRound: rnd, prof: make(map[string]*Stopwatch)}
 	err := sl.start()
 	return sl, err
 }
@@ -122,4 +126,54 @@ func (sl *SpeculationLedger) Commit() error {
 	last := len(sl.Checkpoints) - 1
 	sl.Checkpoints = sl.Checkpoints[:last]
 	return nil
+}
+
+
+func (sl *SpeculationLedger) StartStopwatch(key string) {
+	sw, ok := sl.prof[key]
+	if !ok {
+		sl.prof[key] = &Stopwatch{}
+		sw = sl.prof[key]
+	}
+	sw.Start()
+}
+
+func (sl *SpeculationLedger) StopStopwatch(key string) error {
+	sw, ok := sl.prof[key]
+	if !ok {
+		return errors.New("no such stopwatch")
+	}
+	sw.Stop()
+	return nil
+}
+
+func (sl *SpeculationLedger) Stopwatch(key string) *Stopwatch {
+	return sl.prof[key]
+}
+
+func (sl *SpeculationLedger) ElapsedMillis(key string) uint64 {
+	sw, ok := sl.prof[key]
+	if !ok {
+		return 0
+	}
+	return uint64(sw.Elapsed().Milliseconds())
+
+}
+
+
+type Stopwatch struct {
+	startTime time.Time
+	elapsed time.Duration
+}
+
+func (sw *Stopwatch) Start() {
+	sw.startTime = time.Now()
+}
+
+func (sw *Stopwatch) Stop() {
+	sw.elapsed += time.Since(sw.startTime)
+}
+
+func (sw *Stopwatch) Elapsed() time.Duration {
+	return sw.elapsed
 }
