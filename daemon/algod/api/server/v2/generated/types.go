@@ -658,6 +658,7 @@ type SpeculationResponse struct {
 
 	// The number of transactions preceding each checkpoint.
 	Checkpoints *[]uint64 `json:"checkpoints,omitempty"`
+	Commitments *string   `json:"commitments,omitempty"`
 
 	// The elapsed time in milliseconds spent doing DB work to handle the request
 	DbTime uint64 `json:"db_time"`

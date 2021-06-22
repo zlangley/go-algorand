@@ -1,7 +1,11 @@
 package kalgo
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +19,7 @@ type Env struct {
 }
 
 type Cmd interface {
-	Run(env Env) error
+	Run(env Env) (*Output, error)
 }
 
 func saveToDisk(id, source, root string) (*os.File, error) {
@@ -45,14 +49,14 @@ type InitCmd struct {
 	Address *string
 }
 
-func (cmd *InitCmd) Run(env Env) error {
+func (cmd *InitCmd) Run(env Env) (*Output, error) {
 	file, err := saveToDisk(cmd.Id, cmd.Source, env.SourcePrefix)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	kargs := baseArgs(env, cmd.Sender, cmd.Address)
 	kargs = append(kargs, file.Name())
-	return command(env, "init", kargs...).Run()
+	return command(env, "init", kargs...)
 }
 
 type CallCmd struct {
@@ -63,10 +67,10 @@ type CallCmd struct {
 	Address  *string
 }
 
-func (cmd *CallCmd) Run(env Env) error {
+func (cmd *CallCmd) Run(env Env) (*Output, error) {
 	kargs := baseArgs(env, cmd.Sender, cmd.Address)
 	kargs = append(kargs, fmt.Sprintf(".%s", cmd.Id), cmd.Function, cmd.Args)
-	return command(env, "call", kargs...).Run()
+	return command(env, "call", kargs...)
 }
 
 func baseArgs(env Env, sender *string, address *string) []string {
@@ -80,7 +84,11 @@ func baseArgs(env Env, sender *string, address *string) []string {
 	return args
 }
 
-func command(env Env, subcmd string, args ...string) *exec.Cmd {
+type Output struct {
+	Commitments string `xml:"commitments"`
+}
+
+func command(env Env, subcmd string, args ...string) (*Output, error) {
 	cmd := exec.Command("./kalgo", append([]string{subcmd}, args...)...)
 	cmd.Dir = os.Getenv("KALGO_PREFIX")
 	cmd.Env = append(os.Environ(),
@@ -88,5 +96,30 @@ func command(env Env, subcmd string, args ...string) *exec.Cmd {
 		"ALGOD_TOKEN="+env.AlgodToken,
 		"SPECULATION_TOKEN="+env.SpeculationToken,
 	)
-	return cmd
+	rawout, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	// Some random stuff gets printed before the XML output... try to skip over it.
+	reader := bufio.NewReader(bytes.NewReader(rawout))
+	for {
+		next, err := reader.Peek(1)
+		if err != nil {
+			return nil, err
+		}
+		if string(next) == "<" {
+			break
+		}
+		reader.ReadLine()
+	}
+
+	rawout, err = io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	var out Output
+	xml.Unmarshal(rawout, &out)
+	return &out, nil
 }
