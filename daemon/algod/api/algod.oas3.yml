@@ -629,6 +629,9 @@
                   },
                   "type": "array"
                 },
+                "commitments": {
+                  "type": "string"
+                },
                 "db_time": {
                   "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                   "type": "integer"
@@ -2239,6 +2242,9 @@
                       },
                       "type": "array"
                     },
+                    "commitments": {
+                      "type": "string"
+                    },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
@@ -2667,6 +2673,9 @@
                       },
                       "type": "array"
                     },
+                    "commitments": {
+                      "type": "string"
+                    },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
@@ -2811,6 +2820,9 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "commitments": {
+                      "type": "string"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -2959,6 +2971,9 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "commitments": {
+                      "type": "string"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -3233,6 +3248,9 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "commitments": {
+                      "type": "string"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",

@@ -270,13 +270,15 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		Address: params.Address,
 		Sender:  params.Sender,
 	}
-	if err = executeVM(kenv, cmd, ledger, kKalgoInit); err != nil {
+	out, err := executeVM(kenv, cmd, ledger, kKalgoInit)
+	if err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
+		Commitments: &out.Commitments,
 	})
 }
 
@@ -305,13 +307,15 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		Sender:   params.Sender,
 		Address:  params.Address,
 	}
-	if err = executeVM(kenv, cmd, ledger, kKalgoCall); err != nil {
+	out, err := executeVM(kenv, cmd, ledger, kKalgoCall)
+	if err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
+		Commitments: &out.Commitments,
 	})
 }
 
@@ -321,12 +325,12 @@ type cmdDiscriminator struct {
 
 func decodeBatch(data []byte) ([]interface{}, error) {
 	// FIXME[zach]: I haven't been able to get go-swagger to generate the right interface for a
-	// heterogeneous list (perhaps we are using an old version?). The parsing is kind of gnarly,
-	// but is intended to somewhat mirror what go-swagger supposedly expects. The data is decode twice.
+	// heterogeneous list (perhaps we are using an old version?). The parsing here is kind of gnarly,
+	// but is intended to somewhat mirror what go-swagger supposedly expects. We decode the data twice.
 	// First we decode using the `cmdDiscriminator` helper, which just extracts the "command" discriminator
 	// field. This should be a bit better than just decoding to map[interface{}]interface{}, which would
 	// not enforce the presence of the "command" key. The second decoding just decodes the array, and leaves
-	// the items as json.RawMessage. Looping over the
+	// the items as json.RawMessage which are then decoded dynamically based on the "command" discriminator.
 	var discrims []cmdDiscriminator
 	if err := decode(protocol.JSONUnstrictHandle, data, &discrims); err != nil {
 		return nil, err
@@ -407,7 +411,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 			err = errors.New("unknown command type returned from decodeBatch()")
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		if err = executeVM(kenv, cmd, ledger, cmdname); err != nil {
+		if _, err = executeVM(kenv, cmd, ledger, cmdname); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 	}
@@ -424,25 +428,27 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	})
 }
 
-func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger, cmdkey string) error {
+func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger, cmdkey string) (*kalgo.Output, error) {
 	ledger.StartStopwatch(kKalgoTotal)
 	ledger.StartStopwatch(cmdkey)
-	if err := cmd.Run(kenv); err != nil {
-		return err
+
+	out, err := cmd.Run(kenv)
+	if err != nil {
+		return nil, err
 	}
 	ledger.StopStopwatch(cmdkey)
 	ledger.StopStopwatch(kKalgoTotal)
 
 	if err := ledger.Checkpoint(); err != nil {
-		return err
+		return nil, err
 	}
 
 	ledger.StartStopwatch(kDatabase)
 	if err := dircopy(kenv.SourcePrefix, path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)))); err != nil {
-		return err
+		return nil, err
 	}
 	ledger.StopStopwatch(kDatabase)
-	return nil
+	return out, nil
 }
 
 // Perform operations on a speculation object.
