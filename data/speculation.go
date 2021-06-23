@@ -17,7 +17,6 @@
 package data
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -40,12 +39,10 @@ type SpeculationLedger struct {
 
 	Evaluator *ledger.BlockEvaluator
 	Version   protocol.ConsensusVersion
-
-	prof map[string]*Stopwatch
 }
 
 func NewSpeculationLedger(l *Ledger, rnd basics.Round) (*SpeculationLedger, error) {
-	sl := &SpeculationLedger{baseLedger: l, baseRound: rnd, prof: make(map[string]*Stopwatch)}
+	sl := &SpeculationLedger{baseLedger: l, baseRound: rnd}
 	err := sl.start()
 	return sl, err
 }
@@ -128,50 +125,67 @@ func (sl *SpeculationLedger) Commit() error {
 	return nil
 }
 
+type Profiler struct {
+	curr string
+	watches map[string]*Stopwatch
+}
 
-func (sl *SpeculationLedger) StartStopwatch(key string) {
-	sw, ok := sl.prof[key]
-	if !ok {
-		sl.prof[key] = &Stopwatch{}
-		sw = sl.prof[key]
+func NewProfiler() *Profiler {
+	return &Profiler{
+		curr: "default",
+		watches: map[string]*Stopwatch{
+			"default": &Stopwatch{},
+		},
 	}
-	sw.Start()
 }
 
-func (sl *SpeculationLedger) StopStopwatch(key string) error {
-	sw, ok := sl.prof[key]
-	if !ok {
-		return errors.New("no such stopwatch")
+func (prof *Profiler) Start(key string) {
+	if key == prof.curr {
+		return
 	}
-	sw.Stop()
-	return nil
+	prof.Stop()
+	prof.curr = key
+	if _, ok := prof.watches[key]; !ok {
+		prof.watches[key] = &Stopwatch{}
+	}
+	prof.watches[key].Start()
 }
 
-func (sl *SpeculationLedger) Stopwatch(key string) *Stopwatch {
-	return sl.prof[key]
+func (prof Profiler) Stop() {
+	prof.watches[prof.curr].Stop()
 }
 
-func (sl *SpeculationLedger) ElapsedMillis(key string) uint64 {
-	sw, ok := sl.prof[key]
+func (prof Profiler) Elapsed(key string) uint64 {
+	if key == prof.curr {
+		prof.Stop()
+		prof.Start(key)
+	}
+	sw, ok := prof.watches[key]
 	if !ok {
 		return 0
 	}
-	return uint64(sw.Elapsed().Milliseconds())
-
+	return uint64(sw.Elapsed().Nanoseconds())
 }
 
 
 type Stopwatch struct {
 	startTime time.Time
 	elapsed time.Duration
+	running bool
 }
 
 func (sw *Stopwatch) Start() {
+	sw.running = true
 	sw.startTime = time.Now()
 }
 
 func (sw *Stopwatch) Stop() {
-	sw.elapsed += time.Since(sw.startTime)
+	elapsed := time.Since(sw.startTime)
+	if !sw.running {
+		return
+	}
+	sw.elapsed += elapsed
+	sw.running = false
 }
 
 func (sw *Stopwatch) Elapsed() time.Duration {

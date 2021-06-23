@@ -283,7 +283,7 @@ func filecopy(src, dst string) error {
 	return nil
 }
 
-func dircopy(src string, dst string) error {
+func dircopy(src, dst string) error {
 	srcinfo, err := os.Stat(src)
 	if err != nil {
 		return err
