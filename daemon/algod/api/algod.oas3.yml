@@ -636,20 +636,12 @@
                   "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                   "type": "integer"
                 },
-                "elapsed_time": {
-                  "description": "The total elapsed time in milliseconds to handle the request",
-                  "type": "integer"
-                },
-                "kalgo_call_time": {
-                  "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
-                  "type": "integer"
-                },
-                "kalgo_init_time": {
-                  "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
-                  "type": "integer"
-                },
                 "kalgo_time": {
                   "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                  "type": "integer"
+                },
+                "node_time": {
+                  "description": "The total elapsed time in milliseconds to handle the request",
                   "type": "integer"
                 },
                 "token": {
@@ -660,10 +652,8 @@
               "required": [
                 "base",
                 "db_time",
-                "elapsed_time",
-                "kalgo_call_time",
-                "kalgo_init_time",
                 "kalgo_time",
+                "node_time",
                 "token"
               ],
               "type": "object"
@@ -2272,20 +2262,12 @@
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
                     },
-                    "elapsed_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_call_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_init_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
-                      "type": "integer"
-                    },
                     "kalgo_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
+                    "node_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
                     "token": {
@@ -2296,10 +2278,8 @@
                   "required": [
                     "base",
                     "db_time",
-                    "elapsed_time",
-                    "kalgo_call_time",
-                    "kalgo_init_time",
                     "kalgo_time",
+                    "node_time",
                     "token"
                   ],
                   "type": "object"
@@ -2703,20 +2683,12 @@
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
                     },
-                    "elapsed_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_call_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_init_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
-                      "type": "integer"
-                    },
                     "kalgo_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
+                    "node_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
                     "token": {
@@ -2727,10 +2699,8 @@
                   "required": [
                     "base",
                     "db_time",
-                    "elapsed_time",
-                    "kalgo_call_time",
-                    "kalgo_init_time",
                     "kalgo_time",
+                    "node_time",
                     "token"
                   ],
                   "type": "object"
@@ -2851,20 +2821,12 @@
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
                     },
-                    "elapsed_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_call_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_init_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
-                      "type": "integer"
-                    },
                     "kalgo_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
+                    "node_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
                     "token": {
@@ -2875,10 +2837,8 @@
                   "required": [
                     "base",
                     "db_time",
-                    "elapsed_time",
-                    "kalgo_call_time",
-                    "kalgo_init_time",
                     "kalgo_time",
+                    "node_time",
                     "token"
                   ],
                   "type": "object"
@@ -3002,20 +2962,12 @@
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
                     },
-                    "elapsed_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_call_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_init_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
-                      "type": "integer"
-                    },
                     "kalgo_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
+                    "node_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
                     "token": {
@@ -3026,10 +2978,8 @@
                   "required": [
                     "base",
                     "db_time",
-                    "elapsed_time",
-                    "kalgo_call_time",
-                    "kalgo_init_time",
                     "kalgo_time",
+                    "node_time",
                     "token"
                   ],
                   "type": "object"
@@ -3279,20 +3229,12 @@
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
                       "type": "integer"
                     },
-                    "elapsed_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_call_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo inits to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_init_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo calls to handle the request",
-                      "type": "integer"
-                    },
                     "kalgo_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
+                      "type": "integer"
+                    },
+                    "node_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
                     "token": {
@@ -3303,10 +3245,8 @@
                   "required": [
                     "base",
                     "db_time",
-                    "elapsed_time",
-                    "kalgo_call_time",
-                    "kalgo_init_time",
                     "kalgo_time",
+                    "node_time",
                     "token"
                   ],
                   "type": "object"

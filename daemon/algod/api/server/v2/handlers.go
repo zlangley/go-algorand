@@ -56,6 +56,8 @@ const maxTealDryrunBytes = 1e5
 const maxAlgoClaritySourceBytes = 1e5
 const maxAlgoClarityBatchBytes = 1e6
 
+var prof *data.Profiler
+
 // Handlers is an implementation to the V2 route handler interface defined by the generated code.
 type Handlers struct {
 	Node     NodeInterface
@@ -94,6 +96,8 @@ type NodeInterface interface {
 // RegisterParticipationKeys registers participation keys.
 // (POST /v2/register-participation-keys/{address})
 func (v2 *Handlers) RegisterParticipationKeys(ctx echo.Context, address string, params private.RegisterParticipationKeysParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	// TODO: register participation keys endpoint
 	return ctx.String(http.StatusNotImplemented, "Endpoint not implemented.")
 }
@@ -101,6 +105,8 @@ func (v2 *Handlers) RegisterParticipationKeys(ctx echo.Context, address string, 
 // ShutdownNode shuts down the node.
 // (POST /v2/shutdown)
 func (v2 *Handlers) ShutdownNode(ctx echo.Context, params private.ShutdownNodeParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	// TODO: shutdown endpoint
 	return ctx.String(http.StatusNotImplemented, "Endpoint not implemented.")
 }
@@ -108,6 +114,9 @@ func (v2 *Handlers) ShutdownNode(ctx echo.Context, params private.ShutdownNodePa
 // AccountInformation gets account information for a given account.
 // (GET /v2/accounts/{address})
 func (v2 *Handlers) AccountInformation(ctx echo.Context, address string, params generated.AccountInformationParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
+
 	handle, contentType, err := getCodecHandle(params.Format)
 	if err != nil {
 		return badRequest(ctx, err, errFailedParsingFormatOption, v2.Log)
@@ -176,6 +185,8 @@ func (v2 *Handlers) AccountInformation(ctx echo.Context, address string, params 
 // GetBlock gets the block for the given round.
 // (GET /v2/blocks/{round})
 func (v2 *Handlers) GetBlock(ctx echo.Context, round uint64, params generated.GetBlockParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	handle, contentType, err := getCodecHandle(params.Format)
 	if err != nil {
 		return badRequest(ctx, err, errFailedParsingFormatOption, v2.Log)
@@ -216,6 +227,9 @@ func (v2 *Handlers) GetBlock(ctx echo.Context, round uint64, params generated.Ge
 // Create a speculation context starting at the given block.
 // (POST /v2/blocks/{round}/speculation)
 func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
+	prof = data.NewProfiler()
+	prof.Start(kNode)
+	defer prof.Stop()
 	if round == 0 {
 		round = uint64(v2.Node.Ledger().Latest())
 	}
@@ -224,6 +238,14 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 		return badRequest(ctx, err, fmt.Sprintf("%v", err), v2.Log)
 	}
 
+	/*	current := filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), "current")
+		if _, err = os.Stat(current); os.IsNotExist(err) {
+			os.MkdirAll(current, 777)
+		}
+		kenv := kalgoEnv(ctx.Request(), token)
+		if err = dircopy(current, kenv.SourcePrefix); err != nil {
+			return err
+		}*/
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:  round,
 		Token: token,
@@ -239,16 +261,15 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 	}
 }
 
-
-var kStopwatchTotal string = "total"
+var kNode string = "node"
 var kKalgoTotal string = "kalgo"
-var kKalgoInit string = "init"
-var kKalgoCall string = "call"
 var kDatabase string = "db"
 
 // CreateContract creates an AlgoClarity contract.
 // (POST /v2/contract/{id})
 func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated.CreateContractParams) error {
+	prof.Start(kNode)
+	defer prof.Stop()
 	if params.Speculation == nil {
 		err := errors.New("speculation token required (for now)")
 		return badRequest(ctx, err, err.Error(), v2.Log)
@@ -270,7 +291,7 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		Address: params.Address,
 		Sender:  params.Sender,
 	}
-	out, err := executeVM(kenv, cmd, ledger, kKalgoInit)
+	out, err := executeVM(kenv, cmd, ledger)
 	if err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
@@ -279,12 +300,17 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
 		Commitments: &out.Commitments,
+		NodeTime:    prof.Elapsed(kNode),
+		KalgoTime:   prof.Elapsed(kKalgoTotal),
+		DbTime:      prof.Elapsed(kDatabase),
 	})
 }
 
 // Calls a function on a previously initialized contract.
 // (POST /v2/contracts/{id}/call/{function})
 func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, params generated.CallContractParams) error {
+	prof.Start(kNode)
+	defer prof.Stop()
 	if params.Speculation == nil {
 		err := errors.New("speculation token required (for now)")
 		return badRequest(ctx, err, err.Error(), v2.Log)
@@ -307,7 +333,9 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		Sender:   params.Sender,
 		Address:  params.Address,
 	}
-	out, err := executeVM(kenv, cmd, ledger, kKalgoCall)
+	prof.Start(kKalgoTotal)
+	out, err := executeVM(kenv, cmd, ledger)
+	prof.Start(kNode)
 	if err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
@@ -316,6 +344,9 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
 		Commitments: &out.Commitments,
+		NodeTime:    prof.Elapsed(kNode),
+		KalgoTime:   prof.Elapsed(kKalgoTotal),
+		DbTime:      prof.Elapsed(kDatabase),
 	})
 }
 
@@ -364,6 +395,8 @@ func decodeBatch(data []byte) ([]interface{}, error) {
 // Calls a function on a previously initialized contract.
 // (POST /v2/contracts/batch)
 func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
+	prof.Start(kNode)
+	defer prof.Stop()
 	if params.Speculation == nil {
 		err := errors.New("speculation token required (for now)")
 		return badRequest(ctx, err, err.Error(), v2.Log)
@@ -385,75 +418,68 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
 
-	ledger.StartStopwatch(kStopwatchTotal)
-
 	kenv := kalgoEnv(ctx.Request(), speculation)
 	for _, gcmd := range gcmds {
+		prof.Start(kNode)
 		var cmd kalgo.Cmd
-		var cmdname string
 		if init, ok := gcmd.(generated.ContractInit); ok {
-			cmdname = kKalgoInit
 			cmd = &kalgo.InitCmd{
-				Id: init.Id,
-				Source: init.Source,
-				Sender: init.Sender,
+				Id:      init.Id,
+				Source:  init.Source,
+				Sender:  init.Sender,
 				Address: init.Address,
 			}
 		} else if call, ok := gcmd.(generated.ContractCall); ok {
-			cmdname = kKalgoCall
 			cmd = &kalgo.CallCmd{
-				Id: call.Id,
+				Id:       call.Id,
 				Function: call.Function,
-				Sender: call.Sender,
-				Address: call.Address,
+				Sender:   call.Sender,
+				Address:  call.Address,
 			}
 		} else {
 			err = errors.New("unknown command type returned from decodeBatch()")
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		if _, err = executeVM(kenv, cmd, ledger, cmdname); err != nil {
+		if _, err = executeVM(kenv, cmd, ledger); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 	}
-	ledger.StopStopwatch(kStopwatchTotal)
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
-		ElapsedTime: ledger.ElapsedMillis(kStopwatchTotal),
-		KalgoTime: ledger.ElapsedMillis(kKalgoTotal),
-		KalgoInitTime: ledger.ElapsedMillis(kKalgoInit),
-		KalgoCallTime: ledger.ElapsedMillis(kKalgoCall),
-		DbTime: ledger.ElapsedMillis(kDatabase),
+		NodeTime:    prof.Elapsed(kNode),
+		KalgoTime:   prof.Elapsed(kKalgoTotal),
+		DbTime:      prof.Elapsed(kDatabase),
 	})
 }
 
-func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger, cmdkey string) (*kalgo.Output, error) {
-	ledger.StartStopwatch(kKalgoTotal)
-	ledger.StartStopwatch(cmdkey)
+func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger) (*kalgo.Output, error) {
+	prof.Start(kKalgoTotal)
 
 	out, err := cmd.Run(kenv)
 	if err != nil {
 		return nil, err
 	}
-	ledger.StopStopwatch(cmdkey)
-	ledger.StopStopwatch(kKalgoTotal)
 
+	prof.Start(kNode)
 	if err := ledger.Checkpoint(); err != nil {
 		return nil, err
 	}
 
-	ledger.StartStopwatch(kDatabase)
+	prof.Start(kDatabase)
 	if err := dircopy(kenv.SourcePrefix, path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)))); err != nil {
 		return nil, err
 	}
-	ledger.StopStopwatch(kDatabase)
+	prof.Start(kNode)
 	return out, nil
 }
 
 // Perform operations on a speculation object.
 // (POST /v2/speculation/{token}/{operation})
 func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, operation string) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	if operation == "delete" {
 		v2.Node.DestroySpeculationLedger(speculation)
 		os.RemoveAll(filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation))
@@ -507,6 +533,8 @@ func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, o
 // GetProof generates a Merkle proof for a transaction in a block.
 // (GET /v2/blocks/{round}/transactions/{txid}/proof)
 func (v2 *Handlers) GetProof(ctx echo.Context, round uint64, txid string, params generated.GetProofParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	var txID transactions.Txid
 	err := txID.UnmarshalText([]byte(txid))
 	if err != nil {
@@ -565,6 +593,8 @@ func (v2 *Handlers) GetProof(ctx echo.Context, round uint64, txid string, params
 // GetSupply gets the current supply reported by the ledger.
 // (GET /v2/ledger/supply)
 func (v2 *Handlers) GetSupply(ctx echo.Context) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	latest := v2.Node.Ledger().Latest()
 	totals, err := v2.Node.Ledger().Totals(latest)
 	if err != nil {
@@ -584,6 +614,8 @@ func (v2 *Handlers) GetSupply(ctx echo.Context) error {
 // GetStatus gets the current node status.
 // (GET /v2/status)
 func (v2 *Handlers) GetStatus(ctx echo.Context) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	stat, err := v2.Node.Status()
 	if err != nil {
 		return internalError(ctx, err, errFailedRetrievingNodeStatus, v2.Log)
@@ -613,6 +645,8 @@ func (v2 *Handlers) GetStatus(ctx echo.Context) error {
 // WaitForBlock returns the node status after waiting for the given round.
 // (GET /v2/status/wait-for-block-after/{round}/)
 func (v2 *Handlers) WaitForBlock(ctx echo.Context, round uint64) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	ledger := v2.Node.Ledger()
 
 	stat, err := v2.Node.Status()
@@ -656,6 +690,8 @@ func (v2 *Handlers) WaitForBlock(ctx echo.Context, round uint64) error {
 // RawTransaction broadcasts a raw transaction to the network.
 // (POST /v2/transactions)
 func (v2 *Handlers) RawTransaction(ctx echo.Context, params generated.RawTransactionParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	stat, err := v2.Node.Status()
 	if err != nil {
 		return internalError(ctx, err, errFailedRetrievingNodeStatus, v2.Log)
@@ -716,6 +752,8 @@ func (v2 *Handlers) RawTransaction(ctx echo.Context, params generated.RawTransac
 // TealDryrun takes transactions and additional simulated ledger state and returns debugging information.
 // (POST /v2/teal/dryrun)
 func (v2 *Handlers) TealDryrun(ctx echo.Context) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	if !v2.Node.Config().EnableDeveloperAPI {
 		return ctx.String(http.StatusNotFound, "/teal/dryrun was not enabled in the configuration file by setting the EnableDeveloperAPI to true")
 	}
@@ -781,6 +819,8 @@ func (v2 *Handlers) TealDryrun(ctx echo.Context) error {
 // TransactionParams returns the suggested parameters for constructing a new transaction.
 // (GET /v2/transactions/params)
 func (v2 *Handlers) TransactionParams(ctx echo.Context, params generated.TransactionParamsParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	stat, err := v2.Node.Status()
 	if err != nil {
 		return internalError(ctx, err, errFailedRetrievingNodeStatus, v2.Log)
@@ -822,6 +862,8 @@ func (v2 *Handlers) TransactionParams(ctx echo.Context, params generated.Transac
 // last proto.MaxTxnLife rounds
 // (GET /v2/transactions/pending/{txid})
 func (v2 *Handlers) PendingTransactionInformation(ctx echo.Context, txid string, params generated.PendingTransactionInformationParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 
 	stat, err := v2.Node.Status()
 	if err != nil {
@@ -1014,12 +1056,16 @@ func (v2 *Handlers) abortCatchup(ctx echo.Context, catchpoint string) error {
 // GetPendingTransactions returns the list of unconfirmed transactions currently in the transaction pool.
 // (GET /v2/transactions/pending)
 func (v2 *Handlers) GetPendingTransactions(ctx echo.Context, params generated.GetPendingTransactionsParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	return v2.getPendingTransactions(ctx, params.Max, params.Format, nil)
 }
 
 // GetApplicationByID returns application information by app idx.
 // (GET /v2/applications/{application-id})
 func (v2 *Handlers) GetApplicationByID(ctx echo.Context, applicationId uint64, params generated.GetApplicationByIDParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	appIdx := basics.AppIndex(applicationId)
 	ledger := v2.Node.Ledger()
 	creator, ok, err := ledger.GetCreator(basics.CreatableIndex(appIdx), basics.AppCreatable)
@@ -1048,6 +1094,8 @@ func (v2 *Handlers) GetApplicationByID(ctx echo.Context, applicationId uint64, p
 // GetAssetByID returns application information by app idx.
 // (GET /v2/assets/{asset-id})
 func (v2 *Handlers) GetAssetByID(ctx echo.Context, assetId uint64, params generated.GetAssetByIDParams) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	assetIdx := basics.AssetIndex(assetId)
 	var ledger ledgerForApiHandlers
 	var err error
@@ -1092,18 +1140,24 @@ func (v2 *Handlers) GetPendingTransactionsByAddress(ctx echo.Context, addr strin
 // StartCatchup Given a catchpoint, it starts catching up to this catchpoint
 // (POST /v2/catchup/{catchpoint})
 func (v2 *Handlers) StartCatchup(ctx echo.Context, catchpoint string) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	return v2.startCatchup(ctx, catchpoint)
 }
 
 // AbortCatchup Given a catchpoint, it aborts catching up to this catchpoint
 // (DELETE /v2/catchup/{catchpoint})
 func (v2 *Handlers) AbortCatchup(ctx echo.Context, catchpoint string) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	return v2.abortCatchup(ctx, catchpoint)
 }
 
 // TealCompile compiles TEAL code to binary, return both binary and hash
 // (POST /v2/teal/compile)
 func (v2 *Handlers) TealCompile(ctx echo.Context) error {
+	prof.Start(kNode)
+	defer prof.Start(kKalgoTotal)
 	// return early if teal compile is not allowed in node config
 	if !v2.Node.Config().EnableDeveloperAPI {
 		return ctx.String(http.StatusNotFound, "/teal/compile was not enabled in the configuration file by setting the EnableDeveloperAPI to true")
