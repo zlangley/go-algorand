@@ -238,14 +238,18 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 		return badRequest(ctx, err, fmt.Sprintf("%v", err), v2.Log)
 	}
 
-	/*	current := filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), "current")
-		if _, err = os.Stat(current); os.IsNotExist(err) {
-			os.MkdirAll(current, 777)
+	prof.Start(kDatabase)
+	current := filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), "current")
+	if _, err = os.Stat(current); os.IsNotExist(err) {
+		err = os.MkdirAll(current, 0777)
+		if err != nil {
+			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		kenv := kalgoEnv(ctx.Request(), token)
-		if err = dircopy(current, kenv.SourcePrefix); err != nil {
-			return err
-		}*/
+	}
+	kenv := kalgoEnv(ctx.Request(), token)
+	if err = dircopy(current, kenv.SourcePrefix); err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
+	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:  round,
 		Token: token,
@@ -299,7 +303,7 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
-		Commitments: &out.Commitments,
+		Commitments: out.Commitments,
 		NodeTime:    prof.Elapsed(kNode),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
 		DbTime:      prof.Elapsed(kDatabase),
@@ -343,7 +347,7 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
-		Commitments: &out.Commitments,
+		Commitments: out.Commitments,
 		NodeTime:    prof.Elapsed(kNode),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
 		DbTime:      prof.Elapsed(kDatabase),
@@ -395,6 +399,7 @@ func decodeBatch(data []byte) ([]interface{}, error) {
 // Calls a function on a previously initialized contract.
 // (POST /v2/contracts/batch)
 func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
+	prof = data.NewProfiler()
 	prof.Start(kNode)
 	defer prof.Stop()
 	if params.Speculation == nil {
@@ -468,8 +473,15 @@ func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger) (*
 	}
 
 	prof.Start(kDatabase)
-	if err := dircopy(kenv.SourcePrefix, path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)))); err != nil {
-		return nil, err
+	for _, commit := range out.Commitments {
+		if commit.PreviousCommitment == commit.NewCommitment {
+			continue
+		}
+		src := path.Join(kenv.SourcePrefix, commit.Contract)
+		dst := path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)), commit.Contract)
+		if err := dircopy(src, dst); err != nil {
+			return nil, err
+		}
 	}
 	prof.Start(kNode)
 	return out, nil
