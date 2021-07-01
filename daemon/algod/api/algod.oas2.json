@@ -1859,6 +1859,25 @@
         }
       ]
     },
+    "ContractCommitment": {
+      "type": "object",
+      "required": [
+        "contract",
+        "previous_commitment",
+        "new_commitment"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string"
+        },
+        "previous_commitment": {
+          "type": "string"
+        },
+        "new_commitment": {
+          "type": "string"
+        }
+      }
+    },
     "TealKeyValueStore": {
       "description": "Represents a key-value store for use in an application.",
       "type": "array",
@@ -2486,7 +2505,7 @@
       "schema": {
         "description": "Specifies the base round and token for speculation execution.",
         "type": "object",
-        "required": ["base", "token", "node_time", "kalgo_time", "db_time"],
+        "required": ["base", "token", "commitments", "node_time", "kalgo_time", "db_time"],
         "properties": {
           "base": {
             "description": "The round at which speculation begins",
@@ -2516,7 +2535,10 @@
             "type": "integer"
           },
           "commitments": {
-            "type": "string"
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ContractCommitment"
+            }
           }
         }
       }

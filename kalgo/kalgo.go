@@ -9,6 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/algorand/go-algorand/daemon/algod/api/server/v2/generated"
 )
 
 type Env struct {
@@ -84,8 +88,14 @@ func baseArgs(env Env, sender *string, address *string) []string {
 	return args
 }
 
+type Commitment struct {
+	Contract string
+	Value    string
+}
+
 type Output struct {
-	Commitments string `xml:"commitments"`
+	Commitments    []generated.ContractCommitment
+	CommitmentsRaw string `xml:"commitments"`
 }
 
 func command(env Env, subcmd string, args ...string) (*Output, error) {
@@ -121,5 +131,30 @@ func command(env Env, subcmd string, args ...string) (*Output, error) {
 
 	var out Output
 	xml.Unmarshal(rawout, &out)
+
+	lines := strings.Split(out.CommitmentsRaw, "\n")
+	lines = lines[1 : len(lines)-1]
+	commitments := make([]generated.ContractCommitment, len(lines))
+	for i, line := range lines {
+		// Each line is either:
+		//    .contract |-> Commitment ( "<PREVIOUS COMMITMENT>" , "<NEW COMMITMENT>" )
+		//    .contract |-> InitialCommitment ( "<INITIAL COMMITMENT>" )
+		line = strings.TrimSpace(line)
+		split := strings.Split(line, " ")
+		var prevCommit, newCommit string
+		if split[2] == "Commitment" {
+			prevCommit, _ = strconv.Unquote(split[4])
+			newCommit, _ = strconv.Unquote(split[6])
+		} else {
+			prevCommit = ""
+			newCommit, _ = strconv.Unquote(split[4])
+		}
+		commitments[i] = generated.ContractCommitment{
+			Contract:           strings.TrimLeft(split[0], "."),
+			PreviousCommitment: prevCommit,
+			NewCommitment:      newCommit,
+		}
+	}
+	out.Commitments = commitments
 	return &out, nil
 }

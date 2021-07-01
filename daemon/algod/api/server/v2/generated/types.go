@@ -281,6 +281,13 @@ type ContractCommand struct {
 	Sender *string `json:"sender,omitempty"`
 }
 
+// ContractCommitment defines model for ContractCommitment.
+type ContractCommitment struct {
+	Contract           string `json:"contract"`
+	NewCommitment      string `json:"new_commitment"`
+	PreviousCommitment string `json:"previous_commitment"`
+}
+
 // ContractInit defines model for ContractInit.
 type ContractInit struct {
 	// Embedded struct due to allOf(#/components/schemas/ContractCommand)
@@ -657,8 +664,8 @@ type SpeculationResponse struct {
 	Base uint64 `json:"base"`
 
 	// The number of transactions preceding each checkpoint.
-	Checkpoints *[]uint64 `json:"checkpoints,omitempty"`
-	Commitments *string   `json:"commitments,omitempty"`
+	Checkpoints *[]uint64            `json:"checkpoints,omitempty"`
+	Commitments []ContractCommitment `json:"commitments"`
 
 	// The elapsed time in milliseconds spent doing DB work to handle the request
 	DbTime uint64 `json:"db_time"`

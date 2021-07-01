@@ -630,7 +630,10 @@
                   "type": "array"
                 },
                 "commitments": {
-                  "type": "string"
+                  "items": {
+                    "$ref": "#/components/schemas/ContractCommitment"
+                  },
+                  "type": "array"
                 },
                 "db_time": {
                   "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -651,6 +654,7 @@
               },
               "required": [
                 "base",
+                "commitments",
                 "db_time",
                 "kalgo_time",
                 "node_time",
@@ -1212,6 +1216,25 @@
         "required": [
           "command",
           "id"
+        ],
+        "type": "object"
+      },
+      "ContractCommitment": {
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "new_commitment": {
+            "type": "string"
+          },
+          "previous_commitment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "new_commitment",
+          "previous_commitment"
         ],
         "type": "object"
       },
@@ -2256,7 +2279,10 @@
                       "type": "array"
                     },
                     "commitments": {
-                      "type": "string"
+                      "items": {
+                        "$ref": "#/components/schemas/ContractCommitment"
+                      },
+                      "type": "array"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -2277,6 +2303,7 @@
                   },
                   "required": [
                     "base",
+                    "commitments",
                     "db_time",
                     "kalgo_time",
                     "node_time",
@@ -2677,7 +2704,10 @@
                       "type": "array"
                     },
                     "commitments": {
-                      "type": "string"
+                      "items": {
+                        "$ref": "#/components/schemas/ContractCommitment"
+                      },
+                      "type": "array"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -2698,6 +2728,7 @@
                   },
                   "required": [
                     "base",
+                    "commitments",
                     "db_time",
                     "kalgo_time",
                     "node_time",
@@ -2815,7 +2846,10 @@
                       "type": "array"
                     },
                     "commitments": {
-                      "type": "string"
+                      "items": {
+                        "$ref": "#/components/schemas/ContractCommitment"
+                      },
+                      "type": "array"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -2836,6 +2870,7 @@
                   },
                   "required": [
                     "base",
+                    "commitments",
                     "db_time",
                     "kalgo_time",
                     "node_time",
@@ -2956,7 +2991,10 @@
                       "type": "array"
                     },
                     "commitments": {
-                      "type": "string"
+                      "items": {
+                        "$ref": "#/components/schemas/ContractCommitment"
+                      },
+                      "type": "array"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -2977,6 +3015,7 @@
                   },
                   "required": [
                     "base",
+                    "commitments",
                     "db_time",
                     "kalgo_time",
                     "node_time",
@@ -3223,7 +3262,10 @@
                       "type": "array"
                     },
                     "commitments": {
-                      "type": "string"
+                      "items": {
+                        "$ref": "#/components/schemas/ContractCommitment"
+                      },
+                      "type": "array"
                     },
                     "db_time": {
                       "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
@@ -3244,6 +3286,7 @@
                   },
                   "required": [
                     "base",
+                    "commitments",
                     "db_time",
                     "kalgo_time",
                     "node_time",
