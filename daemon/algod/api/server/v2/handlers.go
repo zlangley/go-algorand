@@ -424,6 +424,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	}
 
 	kenv := kalgoEnv(ctx.Request(), speculation)
+	var commits []generated.ContractCommitment
 	for _, gcmd := range gcmds {
 		prof.Start(kNode)
 		var cmd kalgo.Cmd
@@ -445,13 +446,16 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 			err = errors.New("unknown command type returned from decodeBatch()")
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		if _, err = executeVM(kenv, cmd, ledger); err != nil {
+		var out *kalgo.Output
+		if out, err = executeVM(kenv, cmd, ledger); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
+		commits = append(commits, out.Commitments...)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
+		Commitments: commits,
 		Token:       speculation,
 		NodeTime:    prof.Elapsed(kNode),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
