@@ -129,23 +129,30 @@ func command(env Env, subcmd string, args ...string) (*Output, error) {
 		return nil, err
 	}
 
-	var out Output
-	xml.Unmarshal(rawout, &out)
+	return ParseOutput(rawout)
+}
 
-	lines := strings.Split(out.CommitmentsRaw, "\n")
-	lines = lines[1 : len(lines)-1]
+
+func ParseOutput(raw []byte) (*Output, error) {
+	var out *Output
+	xml.Unmarshal(raw, out)
+
+	lines := strings.Split(strings.TrimSpace(out.CommitmentsRaw), "\n")
 	commitments := make([]generated.ContractCommitment, len(lines))
 	for i, line := range lines {
 		// Each line is either:
 		//    .contract |-> Commitment ( "<PREVIOUS COMMITMENT>" , "<NEW COMMITMENT>" )
 		//    .contract |-> InitialCommitment ( "<INITIAL COMMITMENT>" )
-		line = strings.TrimSpace(line)
-		split := strings.Split(line, " ")
+		//    .contract |-> InitialCommitmentPromise
+		split := strings.Split(strings.TrimSpace(line), " ")
+		if len(split) < 4 {
+			continue
+		}
 		var prevCommit, newCommit string
 		if split[2] == "Commitment" {
 			prevCommit, _ = strconv.Unquote(split[4])
 			newCommit, _ = strconv.Unquote(split[6])
-		} else {
+		} else if split[2] == "InitialCommitment" {
 			prevCommit = ""
 			newCommit, _ = strconv.Unquote(split[4])
 		}
@@ -156,5 +163,5 @@ func command(env Env, subcmd string, args ...string) (*Output, error) {
 		}
 	}
 	out.Commitments = commitments
-	return &out, nil
+	return out, nil
 }
