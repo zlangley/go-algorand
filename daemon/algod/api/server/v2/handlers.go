@@ -439,6 +439,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 			cmd = &kalgo.CallCmd{
 				Id:       call.Id,
 				Function: call.Function,
+				Args:     call.Args,
 				Sender:   call.Sender,
 				Address:  call.Address,
 			}
