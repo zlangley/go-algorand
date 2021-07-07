@@ -1,18 +1,15 @@
 package kalgo
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"io"
+	"github.com/algorand/go-algorand/daemon/algod/api/server/v2/generated"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/algorand/go-algorand/daemon/algod/api/server/v2/generated"
 )
 
 type Env struct {
@@ -23,7 +20,7 @@ type Env struct {
 }
 
 type Cmd interface {
-	Run(env Env) (*Output, error)
+	Run(env Env) ([]byte, error)
 }
 
 func saveToDisk(id, source, root string) (*os.File, error) {
@@ -53,7 +50,7 @@ type InitCmd struct {
 	Address *string
 }
 
-func (cmd *InitCmd) Run(env Env) (*Output, error) {
+func (cmd *InitCmd) Run(env Env) ([]byte, error) {
 	file, err := saveToDisk(cmd.Id, cmd.Source, env.SourcePrefix)
 	if err != nil {
 		return nil, err
@@ -71,7 +68,7 @@ type CallCmd struct {
 	Address  *string
 }
 
-func (cmd *CallCmd) Run(env Env) (*Output, error) {
+func (cmd *CallCmd) Run(env Env) ([]byte, error) {
 	kargs := baseArgs(env, cmd.Sender, cmd.Address)
 	kargs = append(kargs, fmt.Sprintf(".%s", cmd.Id), cmd.Function, cmd.Args)
 	return command(env, "call", kargs...)
@@ -98,7 +95,7 @@ type Output struct {
 	CommitmentsRaw string `xml:"commitments"`
 }
 
-func command(env Env, subcmd string, args ...string) (*Output, error) {
+func command(env Env, subcmd string, args ...string) ([]byte, error) {
 	cmd := exec.Command("./kalgo", append([]string{subcmd}, args...)...)
 	cmd.Dir = os.Getenv("KALGO_PREFIX")
 	cmd.Env = append(os.Environ(),
@@ -106,37 +103,18 @@ func command(env Env, subcmd string, args ...string) (*Output, error) {
 		"ALGOD_TOKEN="+env.AlgodToken,
 		"SPECULATION_TOKEN="+env.SpeculationToken,
 	)
-	rawout, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	// Some random stuff gets printed before the XML output... try to skip over it.
-	reader := bufio.NewReader(bytes.NewReader(rawout))
-	for {
-		next, err := reader.Peek(1)
-		if err != nil {
-			return nil, err
-		}
-		if string(next) == "<" {
-			break
-		}
-		reader.ReadLine()
-	}
-
-	rawout, err = io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return ParseOutput(rawout)
+	return cmd.Output()
 }
 
-
 func ParseOutput(raw []byte) (*Output, error) {
-	var out *Output
-	xml.Unmarshal(raw, out)
+	var out Output
 
+	decoder := xml.NewDecoder(bytes.NewReader(raw))
+	decoder.Strict = false
+	err := decoder.Decode(&out)
+	if err != nil {
+		return nil, err
+	}
 	lines := strings.Split(strings.TrimSpace(out.CommitmentsRaw), "\n")
 	commitments := make([]generated.ContractCommitment, len(lines))
 	for i, line := range lines {
@@ -163,5 +141,5 @@ func ParseOutput(raw []byte) (*Output, error) {
 		}
 	}
 	out.Commitments = commitments
-	return out, nil
+	return &out, nil
 }
