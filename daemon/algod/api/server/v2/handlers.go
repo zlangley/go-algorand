@@ -465,13 +465,17 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 
 func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger) (*kalgo.Output, error) {
 	prof.Start(kKalgoTotal)
-
-	out, err := cmd.Run(kenv)
+	rawout, err := cmd.Run(kenv)
 	if err != nil {
 		return nil, err
 	}
 
 	prof.Start(kNode)
+	out, err := kalgo.ParseOutput(rawout)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := ledger.Checkpoint(); err != nil {
 		return nil, err
 	}
