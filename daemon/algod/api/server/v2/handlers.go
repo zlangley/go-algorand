@@ -71,8 +71,8 @@ type Handlers struct {
 type ledgerForApiHandlers interface {
 	GetCreator(cidx basics.CreatableIndex, ctype basics.CreatableType) (basics.Address, bool, error)
 	Latest() basics.Round
-	Lookup(rnd basics.Round, addr basics.Address) (basics.AccountData, error)
-	LookupWithoutRewards(rnd basics.Round, addr basics.Address) (basics.AccountData, basics.Round, error)
+	LookupLatest(addr basics.Address) (basics.AccountData, error)
+	LookupLatestWithoutRewards(addr basics.Address) (basics.AccountData, basics.Round, error)
 }
 
 // NodeInterface represents node fns used by the handlers.
@@ -136,8 +136,7 @@ func (v2 *Handlers) AccountInformation(ctx echo.Context, address string, params 
 			return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 		}
 	}
-	lastRound := ledger.Latest()
-	record, err := ledger.Lookup(lastRound, addr)
+	record, err := ledger.LookupLatest(addr)
 	if err != nil {
 		return internalError(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
@@ -150,7 +149,7 @@ func (v2 *Handlers) AccountInformation(ctx echo.Context, address string, params 
 		return ctx.Blob(http.StatusOK, contentType, data)
 	}
 
-	recordWithoutPendingRewards, _, err := ledger.LookupWithoutRewards(lastRound, addr)
+	recordWithoutPendingRewards, _, err := ledger.LookupLatestWithoutRewards(addr)
 	if err != nil {
 		return internalError(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
@@ -173,7 +172,7 @@ func (v2 *Handlers) AccountInformation(ctx echo.Context, address string, params 
 		}
 	}
 
-	account, err := AccountDataToAccount(address, &record, assetsCreators, lastRound, amountWithoutPendingRewards)
+	account, err := AccountDataToAccount(address, &record, assetsCreators, ledger.Latest(), amountWithoutPendingRewards)
 	if err != nil {
 		return internalError(ctx, err, errInternalFailure, v2.Log)
 	}
@@ -1097,8 +1096,7 @@ func (v2 *Handlers) GetApplicationByID(ctx echo.Context, applicationId uint64, p
 		return notFound(ctx, errors.New(errAppDoesNotExist), errAppDoesNotExist, v2.Log)
 	}
 
-	lastRound := ledger.Latest()
-	record, _, err := ledger.LookupWithoutRewards(lastRound, creator)
+	record, _, err := ledger.LookupLatestWithoutRewards(creator)
 	if err != nil {
 		return internalError(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
@@ -1136,8 +1134,7 @@ func (v2 *Handlers) GetAssetByID(ctx echo.Context, assetId uint64, params genera
 		return notFound(ctx, errors.New(errAssetDoesNotExist), errAssetDoesNotExist, v2.Log)
 	}
 
-	lastRound := ledger.Latest()
-	record, err := ledger.Lookup(lastRound, creator)
+	record, err := ledger.LookupLatest(creator)
 	if err != nil {
 		return internalError(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}

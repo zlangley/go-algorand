@@ -449,6 +449,10 @@ func (l *Ledger) Lookup(rnd basics.Round, addr basics.Address) (basics.AccountDa
 	return data, nil
 }
 
+func (l *Ledger) LookupLatest(addr basics.Address) (basics.AccountData, error) {
+	return l.Lookup(l.Latest(), addr)
+}
+
 // LookupWithoutRewards is like Lookup but does not apply pending rewards up
 // to the requested round rnd.
 func (l *Ledger) LookupWithoutRewards(rnd basics.Round, addr basics.Address) (basics.AccountData, basics.Round, error) {
@@ -461,6 +465,10 @@ func (l *Ledger) LookupWithoutRewards(rnd basics.Round, addr basics.Address) (ba
 	}
 
 	return data, validThrough, nil
+}
+
+func (l *Ledger) LookupLatestWithoutRewards(addr basics.Address) (basics.AccountData, basics.Round, error) {
+	return l.LookupWithoutRewards(l.Latest(), addr)
 }
 
 // Totals returns the totals of all accounts at the end of round rnd.

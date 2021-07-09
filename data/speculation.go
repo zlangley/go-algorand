@@ -17,7 +17,6 @@
 package data
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/algorand/go-algorand/crypto"
@@ -78,16 +77,10 @@ func (sl *SpeculationLedger) GetCreator(cidx basics.CreatableIndex, ctype basics
 func (sl *SpeculationLedger) Latest() basics.Round {
 	return sl.baseRound // or +1 per group? The speculative txns are certainly not in the ledger's round.
 }
-func (sl *SpeculationLedger) Lookup(rnd basics.Round, addr basics.Address) (basics.AccountData, error) {
-	if rnd > sl.Latest() {
-		return basics.AccountData{}, fmt.Errorf("trying to lookup in future round %d", rnd)
-	}
+func (sl *SpeculationLedger) LookupLatest(addr basics.Address) (basics.AccountData, error) {
 	return sl.Evaluator.State().Get(addr, true)
 }
-func (sl *SpeculationLedger) LookupWithoutRewards(rnd basics.Round, addr basics.Address) (basics.AccountData, basics.Round, error) {
-	if rnd > sl.Latest() {
-		return basics.AccountData{}, basics.Round(0), fmt.Errorf("trying to lookup in future round %d", rnd)
-	}
+func (sl *SpeculationLedger) LookupLatestWithoutRewards(addr basics.Address) (basics.AccountData, basics.Round, error) {
 	acct, err := sl.Evaluator.State().Get(addr, false)
 	// Need to understand what the "validThrough" round returned here should mean
 	return acct, basics.Round(0), err
