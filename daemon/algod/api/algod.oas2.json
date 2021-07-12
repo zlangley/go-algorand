@@ -2505,7 +2505,7 @@
       "schema": {
         "description": "Specifies the base round and token for speculation execution.",
         "type": "object",
-        "required": ["base", "token", "commitments", "node_time", "kalgo_time", "db_time"],
+        "required": ["base", "token", "commitments", "total_time", "node_time", "kalgo_time", "db_time"],
         "properties": {
           "base": {
             "description": "The round at which speculation begins",
@@ -2521,6 +2521,10 @@
             "items": {
               "type": "integer"
             }
+          },
+          "total_time": {
+            "description": "The total elapsed time in milliseconds to handle the request",
+            "type": "integer"
           },
           "node_time": {
             "description": "The total elapsed time in milliseconds to handle the request",

@@ -678,6 +678,9 @@ type SpeculationResponse struct {
 
 	// The persistent token by which the speculation can be referenced
 	Token string `json:"token"`
+
+	// The total elapsed time in milliseconds to handle the request
+	TotalTime uint64 `json:"total_time"`
 }
 
 // SupplyResponse defines model for SupplyResponse.

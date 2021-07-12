@@ -33,11 +33,11 @@ import (
 // report on balances and such as we go.
 
 type SpeculationLedger struct {
-	baseLedger      *Ledger
-	baseRound       basics.Round
-	workingTxGroups [][]transactions.SignedTxn
-	stagedTxGroups  [][]transactions.SignedTxn
-	Checkpoints     []uint64
+	baseLedger  *Ledger
+	baseRound   basics.Round
+	txnStack    [][]transactions.SignedTxn
+	txnBatch    [][]transactions.SignedTxn
+	Checkpoints []uint64
 
 	Evaluator *ledger.BlockEvaluator
 	Version   protocol.ConsensusVersion
@@ -49,7 +49,7 @@ func NewSpeculationLedger(l *Ledger, rnd basics.Round) (*SpeculationLedger, erro
 	return sl, err
 }
 
-// Note that start() does not manipulate workingTxGroups or checkpoints, so
+// Note that start() does not manipulate txnStack or checkpoints, so
 // it can be used at construction time and during rollback.
 func (sl *SpeculationLedger) start() error {
 	hdr, err := sl.baseLedger.BlockHdr(sl.baseRound)
@@ -60,7 +60,9 @@ func (sl *SpeculationLedger) start() error {
 	if err != nil {
 		return err
 	}
-	for _, txgroup := range sl.stagedTxGroups {
+
+	// Re-apply the batch assembled so far.
+	for _, txgroup := range sl.txnBatch {
 		err = evaluator.TransactionGroup(txgroup)
 		if err != nil {
 			return err
@@ -90,12 +92,12 @@ func (sl *SpeculationLedger) Apply(txgroup []transactions.SignedTxn) error {
 	if err != nil {
 		return err
 	}
-	sl.workingTxGroups = append(sl.workingTxGroups, txgroup)
+	sl.txnStack = append(sl.txnStack, txgroup)
 	return nil
 }
 
 func (sl *SpeculationLedger) Checkpoint() error {
-	sl.Checkpoints = append(sl.Checkpoints, uint64(len(sl.workingTxGroups)))
+	sl.Checkpoints = append(sl.Checkpoints, uint64(len(sl.txnStack)))
 	return nil
 }
 func (sl *SpeculationLedger) Rollback() error {
@@ -107,8 +109,8 @@ func (sl *SpeculationLedger) Rollback() error {
 
 	// Replay the txns up until the last checkpoint
 	last := len(sl.Checkpoints) - 1
-	replays := sl.workingTxGroups[:sl.Checkpoints[last]]
-	sl.workingTxGroups = nil
+	replays := sl.txnStack[:sl.Checkpoints[last]]
+	sl.txnStack = nil
 	for _, txgroup := range replays {
 		err := sl.Apply(txgroup)
 		if err != nil {
@@ -127,14 +129,9 @@ func (sl *SpeculationLedger) Commit() error {
 	return nil
 }
 
-func (sl *SpeculationLedger) StageWorking() error {
-	err := sl.start()
-	if err != nil {
-		return err
-	}
-
+func (sl *SpeculationLedger) CommitStack() error {
 	var group transactions.TxGroup
-	stxns := bookkeeping.SignedTxnGroupsFlatten(sl.workingTxGroups)
+	stxns := bookkeeping.SignedTxnGroupsFlatten(sl.txnStack)
 	for _, stxn := range stxns {
 		group.TxGroupHashes = append(group.TxGroupHashes, crypto.HashObj(stxn.Txn))
 	}
@@ -142,23 +139,25 @@ func (sl *SpeculationLedger) StageWorking() error {
 	for i := range stxns {
 		stxns[i].Txn.Group = groupHash
 	}
-	err = sl.Evaluator.TransactionGroup(stxns)
+	err := sl.Evaluator.TransactionGroup(stxns)
 	if err != nil {
 		return err
 	}
-	sl.stagedTxGroups = append(sl.stagedTxGroups, stxns)
-	sl.workingTxGroups = nil
+	sl.txnBatch = append(sl.txnBatch, stxns)
+	sl.txnStack = nil
 	return nil
 }
 
 type Profiler struct {
 	curr    string
+	initTime time.Time
 	watches map[string]*Stopwatch
 }
 
 func NewProfiler() *Profiler {
 	return &Profiler{
 		curr: "default",
+		initTime: time.Now(),
 		watches: map[string]*Stopwatch{
 			"default": &Stopwatch{},
 		},
@@ -179,6 +178,10 @@ func (prof *Profiler) Start(key string) {
 
 func (prof Profiler) Stop() {
 	prof.watches[prof.curr].Stop()
+}
+
+func (prof Profiler) ElapsedTotal() uint64 {
+	return uint64(time.Since(prof.initTime).Nanoseconds())
 }
 
 func (prof Profiler) Elapsed(key string) uint64 {

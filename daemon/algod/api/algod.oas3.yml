@@ -650,6 +650,10 @@
                 "token": {
                   "description": "The persistent token by which the speculation can be referenced",
                   "type": "string"
+                },
+                "total_time": {
+                  "description": "The total elapsed time in milliseconds to handle the request",
+                  "type": "integer"
                 }
               },
               "required": [
@@ -658,7 +662,8 @@
                 "db_time",
                 "kalgo_time",
                 "node_time",
-                "token"
+                "token",
+                "total_time"
               ],
               "type": "object"
             }
@@ -2299,6 +2304,10 @@
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
+                    },
+                    "total_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
                     }
                   },
                   "required": [
@@ -2307,7 +2316,8 @@
                     "db_time",
                     "kalgo_time",
                     "node_time",
-                    "token"
+                    "token",
+                    "total_time"
                   ],
                   "type": "object"
                 }
@@ -2724,6 +2734,10 @@
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
+                    },
+                    "total_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
                     }
                   },
                   "required": [
@@ -2732,7 +2746,8 @@
                     "db_time",
                     "kalgo_time",
                     "node_time",
-                    "token"
+                    "token",
+                    "total_time"
                   ],
                   "type": "object"
                 }
@@ -2866,6 +2881,10 @@
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
+                    },
+                    "total_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
                     }
                   },
                   "required": [
@@ -2874,7 +2893,8 @@
                     "db_time",
                     "kalgo_time",
                     "node_time",
-                    "token"
+                    "token",
+                    "total_time"
                   ],
                   "type": "object"
                 }
@@ -3011,6 +3031,10 @@
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
+                    },
+                    "total_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
                     }
                   },
                   "required": [
@@ -3019,7 +3043,8 @@
                     "db_time",
                     "kalgo_time",
                     "node_time",
-                    "token"
+                    "token",
+                    "total_time"
                   ],
                   "type": "object"
                 }
@@ -3282,6 +3307,10 @@
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
+                    },
+                    "total_time": {
+                      "description": "The total elapsed time in milliseconds to handle the request",
+                      "type": "integer"
                     }
                   },
                   "required": [
@@ -3290,7 +3319,8 @@
                     "db_time",
                     "kalgo_time",
                     "node_time",
-                    "token"
+                    "token",
+                    "total_time"
                   ],
                   "type": "object"
                 }
