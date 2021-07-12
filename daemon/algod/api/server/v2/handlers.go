@@ -238,7 +238,7 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 		return badRequest(ctx, err, fmt.Sprintf("%v", err), v2.Log)
 	}
 
-	prof.Start(kDatabase)
+	prof.Start(kCopyOnWrite)
 	current := filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), "current")
 	if _, err = os.Stat(current); os.IsNotExist(err) {
 		err = os.MkdirAll(current, 0777)
@@ -265,9 +265,11 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 	}
 }
 
-var kNode string = "node"
-var kKalgoTotal string = "kalgo"
-var kDatabase string = "db"
+var (
+	kNode = "node"
+	kKalgoTotal = "kalgo"
+	kCopyOnWrite = "cow"
+)
 
 // CreateContract creates an AlgoClarity contract.
 // (POST /v2/contract/{id})
@@ -307,7 +309,7 @@ func (v2 *Handlers) CreateContract(ctx echo.Context, id string, params generated
 		TotalTime:   prof.ElapsedTotal(),
 		NodeTime:    prof.Elapsed(kNode),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
-		DbTime:      prof.Elapsed(kDatabase),
+		DbTime:      prof.Elapsed(kCopyOnWrite),
 	})
 }
 
@@ -352,7 +354,7 @@ func (v2 *Handlers) CallContract(ctx echo.Context, id string, function string, p
 		TotalTime:   prof.ElapsedTotal(),
 		NodeTime:    prof.Elapsed(kNode),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
-		DbTime:      prof.Elapsed(kDatabase),
+		DbTime:      prof.Elapsed(kCopyOnWrite),
 	})
 }
 
@@ -463,7 +465,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		TotalTime:   prof.ElapsedTotal(),
 		NodeTime:    prof.Elapsed(kNode),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
-		DbTime:      prof.Elapsed(kDatabase),
+		DbTime:      prof.Elapsed(kCopyOnWrite),
 	})
 }
 
@@ -484,7 +486,7 @@ func executeVM(kenv kalgo.Env, cmd kalgo.Cmd, ledger *data.SpeculationLedger) (*
 		return nil, err
 	}
 
-	prof.Start(kDatabase)
+	prof.Start(kCopyOnWrite)
 	for _, commit := range out.Commitments {
 		if commit.PreviousCommitment == commit.NewCommitment {
 			continue
