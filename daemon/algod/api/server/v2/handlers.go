@@ -49,6 +49,7 @@ import (
 	"github.com/algorand/go-algorand/node"
 	"github.com/algorand/go-algorand/protocol"
 	"github.com/algorand/go-algorand/rpcs"
+	"github.com/algorand/go-algorand/util"
 )
 
 const maxTealSourceBytes = 1e5
@@ -56,7 +57,7 @@ const maxTealDryrunBytes = 1e5
 const maxAlgoClaritySourceBytes = 1e5
 const maxAlgoClarityBatchBytes = 1e6
 
-var prof *data.Profiler
+var prof *util.Profiler
 
 // Handlers is an implementation to the V2 route handler interface defined by the generated code.
 type Handlers struct {
@@ -226,7 +227,7 @@ func (v2 *Handlers) GetBlock(ctx echo.Context, round uint64, params generated.Ge
 // Create a speculation context starting at the given block.
 // (POST /v2/blocks/{round}/speculation)
 func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
-	prof = data.NewProfiler()
+	prof = util.NewProfiler()
 	prof.Start(kNode)
 	defer prof.Stop()
 	if round == 0 {
@@ -400,7 +401,7 @@ func decodeBatch(data []byte) ([]interface{}, error) {
 // Calls a function on a previously initialized contract.
 // (POST /v2/contracts/batch)
 func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
-	prof = data.NewProfiler()
+	prof = util.NewProfiler()
 	prof.Start(kNode)
 	defer prof.Stop()
 	if params.Speculation == nil {
