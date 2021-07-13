@@ -1308,6 +1308,7 @@
             "required": false
           },
           {
+            "pattern": "[A-Z0-9]{58}",
             "type": "string",
             "name": "address",
             "in": "query",
@@ -1847,6 +1848,11 @@
             "args"
           ],
           "properties": {
+            "address": {
+              "pattern": "[A-Z0-9]{58}",
+              "description": "The address of the contract.",
+              "type": "string"
+            },
             "function": {
               "description": "The function to call in the specified contract.",
               "type": "string"
@@ -2505,7 +2511,7 @@
       "schema": {
         "description": "Specifies the base round and token for speculation execution.",
         "type": "object",
-        "required": ["base", "token", "commitments", "total_time", "node_time", "kalgo_time", "db_time"],
+        "required": ["base", "token", "commitments", "address", "total_time", "node_time", "kalgo_time", "db_time"],
         "properties": {
           "base": {
             "description": "The round at which speculation begins",
@@ -2521,6 +2527,10 @@
             "items": {
               "type": "integer"
             }
+          },
+          "address": {
+            "description": "The address of the executed contract, if any",
+            "type": "string"
           },
           "total_time": {
             "description": "The total elapsed time in milliseconds to handle the request",

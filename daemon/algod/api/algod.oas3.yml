@@ -618,6 +618,10 @@
             "schema": {
               "description": "Specifies the base round and token for speculation execution.",
               "properties": {
+                "address": {
+                  "description": "The address of the executed contract, if any",
+                  "type": "string"
+                },
                 "base": {
                   "description": "The round at which speculation begins",
                   "type": "integer"
@@ -657,6 +661,7 @@
                 }
               },
               "required": [
+                "address",
                 "base",
                 "commitments",
                 "db_time",
@@ -1179,6 +1184,11 @@
           },
           {
             "properties": {
+              "address": {
+                "description": "The address of the contract.",
+                "pattern": "[A-Z0-9]{58}",
+                "type": "string"
+              },
               "args": {
                 "description": "The arguments to pass into the function call.",
                 "type": "string"
@@ -2272,6 +2282,10 @@
                 "schema": {
                   "description": "Specifies the base round and token for speculation execution.",
                   "properties": {
+                    "address": {
+                      "description": "The address of the executed contract, if any",
+                      "type": "string"
+                    },
                     "base": {
                       "description": "The round at which speculation begins",
                       "type": "integer"
@@ -2311,6 +2325,7 @@
                     }
                   },
                   "required": [
+                    "address",
                     "base",
                     "commitments",
                     "db_time",
@@ -2702,6 +2717,10 @@
                 "schema": {
                   "description": "Specifies the base round and token for speculation execution.",
                   "properties": {
+                    "address": {
+                      "description": "The address of the executed contract, if any",
+                      "type": "string"
+                    },
                     "base": {
                       "description": "The round at which speculation begins",
                       "type": "integer"
@@ -2741,6 +2760,7 @@
                     }
                   },
                   "required": [
+                    "address",
                     "base",
                     "commitments",
                     "db_time",
@@ -2818,6 +2838,7 @@
             "in": "query",
             "name": "address",
             "schema": {
+              "pattern": "[A-Z0-9]{58}",
               "type": "string"
             }
           },
@@ -2849,6 +2870,10 @@
                 "schema": {
                   "description": "Specifies the base round and token for speculation execution.",
                   "properties": {
+                    "address": {
+                      "description": "The address of the executed contract, if any",
+                      "type": "string"
+                    },
                     "base": {
                       "description": "The round at which speculation begins",
                       "type": "integer"
@@ -2888,6 +2913,7 @@
                     }
                   },
                   "required": [
+                    "address",
                     "base",
                     "commitments",
                     "db_time",
@@ -2999,6 +3025,10 @@
                 "schema": {
                   "description": "Specifies the base round and token for speculation execution.",
                   "properties": {
+                    "address": {
+                      "description": "The address of the executed contract, if any",
+                      "type": "string"
+                    },
                     "base": {
                       "description": "The round at which speculation begins",
                       "type": "integer"
@@ -3038,6 +3068,7 @@
                     }
                   },
                   "required": [
+                    "address",
                     "base",
                     "commitments",
                     "db_time",
@@ -3275,6 +3306,10 @@
                 "schema": {
                   "description": "Specifies the base round and token for speculation execution.",
                   "properties": {
+                    "address": {
+                      "description": "The address of the executed contract, if any",
+                      "type": "string"
+                    },
                     "base": {
                       "description": "The round at which speculation begins",
                       "type": "integer"
@@ -3314,6 +3349,7 @@
                     }
                   },
                   "required": [
+                    "address",
                     "base",
                     "commitments",
                     "db_time",

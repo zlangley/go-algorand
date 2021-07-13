@@ -258,6 +258,9 @@ type ContractCall struct {
 	ContractCommand
 	// Embedded fields due to inline allOf schema
 
+	// The address of the contract.
+	Address *string `json:"address,omitempty"`
+
 	// The arguments to pass into the function call.
 	Args string `json:"args"`
 
@@ -659,6 +662,9 @@ type ProofResponse struct {
 
 // SpeculationResponse defines model for SpeculationResponse.
 type SpeculationResponse struct {
+
+	// The address of the executed contract, if any
+	Address string `json:"address"`
 
 	// The round at which speculation begins
 	Base uint64 `json:"base"`

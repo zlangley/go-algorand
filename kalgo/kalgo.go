@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"github.com/algorand/go-algorand/daemon/algod/api/server/v2/generated"
+	"github.com/algorand/go-algorand/data/basics"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,17 +20,17 @@ type Env struct {
 	SourcePrefix     string
 }
 
-type Cmd interface {
+type Runner interface {
 	Run(env Env) ([]byte, error)
 }
 
-func saveToDisk(id, source, root string) (*os.File, error) {
-	dirpath := filepath.Join(root, id)
+func saveToDisk(name, source, root string) (*os.File, error) {
+	dirpath := filepath.Join(root, name)
 	err := os.MkdirAll(dirpath, 0755)
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dirpath, fmt.Sprintf("%s.clar", id))
+	path := filepath.Join(dirpath, fmt.Sprintf("%s.clar", name))
 	file, err := os.Create(path)
 	if err != nil {
 		return nil, err
@@ -43,15 +44,19 @@ func saveToDisk(id, source, root string) (*os.File, error) {
 	return file, err
 }
 
+type Cmd struct {
+	Name      string
+	Sender  basics.Address
+	Address basics.Address
+}
+
 type InitCmd struct {
-	Id      string
+	Cmd
 	Source  string
-	Sender  *string
-	Address *string
 }
 
 func (cmd *InitCmd) Run(env Env) ([]byte, error) {
-	file, err := saveToDisk(cmd.Id, cmd.Source, env.SourcePrefix)
+	file, err := saveToDisk(cmd.Name, cmd.Source, env.SourcePrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -61,26 +66,24 @@ func (cmd *InitCmd) Run(env Env) ([]byte, error) {
 }
 
 type CallCmd struct {
-	Id       string
+	Cmd
 	Function string
 	Args     string
-	Sender   *string
-	Address  *string
 }
 
 func (cmd *CallCmd) Run(env Env) ([]byte, error) {
 	kargs := baseArgs(env, cmd.Sender, cmd.Address)
-	kargs = append(kargs, fmt.Sprintf(".%s", cmd.Id), cmd.Function, cmd.Args)
+	kargs = append(kargs, fmt.Sprintf(".%s", cmd.Name), cmd.Function, cmd.Args)
 	return command(env, "call", kargs...)
 }
 
-func baseArgs(env Env, sender *string, address *string) []string {
+func baseArgs(env Env, sender basics.Address, address basics.Address) []string {
 	args := []string{"--prefix", env.SourcePrefix}
-	if sender != nil {
-		args = append(args, "--sender", *sender)
+	if !sender.IsZero() {
+		args = append(args, "--sender", "@" + sender.GetUserAddress())
 	}
-	if address != nil {
-		args = append(args, "--address", *address)
+	if !address.IsZero() {
+		args = append(args, "--address", "@" + address.GetUserAddress())
 	}
 	return args
 }
