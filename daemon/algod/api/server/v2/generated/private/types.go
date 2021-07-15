@@ -687,6 +687,9 @@ type SpeculationResponse struct {
 
 	// The total elapsed time in milliseconds to handle the request
 	TotalTime uint64 `json:"total_time"`
+
+	// The elapsed time in milliseconds spent in kalgo to handle the request
+	VrfTime uint64 `json:"vrf_time"`
 }
 
 // SupplyResponse defines model for SupplyResponse.

@@ -1280,159 +1280,6 @@
         }
       }
     },
-    "/v2/contracts/{id}": {
-      "post": {
-        "description": "Creates a new contract with the specified identifier and source code.",
-        "consumes": [
-          "text/plain"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "schemes": [
-          "http"
-        ],
-        "summary": "Creates a new contract with the specified identifier and source code",
-        "operationId": "CreateContract",
-        "parameters": [
-          {
-            "type": "string",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "name": "sender",
-            "in": "query",
-            "required": false
-          },
-          {
-            "pattern": "[A-Z0-9]{58}",
-            "type": "string",
-            "name": "address",
-            "in": "query",
-            "required": false
-          },
-          {
-            "$ref": "#/parameters/speculation"
-          },
-          {
-            "description": "AlgoClarity source code",
-            "name": "source",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "binary"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/responses/SpeculationResponse"
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/ErrorResponse"
-            }
-          },
-          "401": {
-            "description": "Invalid API Token",
-            "schema": {
-              "$ref": "#/definitions/ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Error",
-            "schema": {
-              "$ref": "#/definitions/ErrorResponse"
-            }
-          },
-          "default": {
-            "description": "Unknown Error"
-          }
-        }
-      }
-    },
-    "/v2/contracts/{id}/call/{function}": {
-      "post": {
-        "description": "Calls a function on a previously initialized contract.",
-        "consumes": [
-          "text/plain"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "schemes": [
-          "http"
-        ],
-        "summary": "Calls a function on a previously initialized contract.",
-        "operationId": "CallContract",
-        "parameters": [
-          {
-            "type": "string",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "name": "function",
-            "in": "path",
-            "required": true
-          },
-          {
-            "$ref": "#/parameters/speculation"
-          },
-          {
-            "type": "string",
-            "name": "sender",
-            "in": "query",
-            "required": false
-          },
-          {
-            "type": "string",
-            "name": "address",
-            "in": "query",
-            "required": false
-          },
-          {
-            "type": "string",
-            "name": "args",
-            "in": "query",
-            "required": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/responses/SpeculationResponse"
-          },
-          "400": {
-            "description": "Bad Request",
-            "schema": {
-              "$ref": "#/definitions/ErrorResponse"
-            }
-          },
-          "401": {
-            "description": "Invalid API Token",
-            "schema": {
-              "$ref": "#/definitions/ErrorResponse"
-            }
-          },
-          "500": {
-            "description": "Internal Error",
-            "schema": {
-              "$ref": "#/definitions/ErrorResponse"
-            }
-          },
-          "default": {
-            "description": "Unknown Error"
-          }
-        }
-      }
-    },
     "/v2/contracts/batch": {
       "post": {
         "description": "Executes a batch of contract initializations/calls.",
@@ -2511,7 +2358,7 @@
       "schema": {
         "description": "Specifies the base round and token for speculation execution.",
         "type": "object",
-        "required": ["base", "token", "commitments", "address", "total_time", "node_time", "kalgo_time", "db_time"],
+        "required": ["base", "token", "commitments", "address", "total_time", "node_time", "kalgo_time", "vrf_time", "db_time"],
         "properties": {
           "base": {
             "description": "The round at which speculation begins",
@@ -2538,6 +2385,10 @@
           },
           "node_time": {
             "description": "The total elapsed time in milliseconds to handle the request",
+            "type": "integer"
+          },
+          "vrf_time": {
+            "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
             "type": "integer"
           },
           "kalgo_time": {

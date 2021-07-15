@@ -106,7 +106,11 @@ func command(env Env, subcmd string, args ...string) ([]byte, error) {
 		"ALGOD_TOKEN="+env.AlgodToken,
 		"SPECULATION_TOKEN="+env.SpeculationToken,
 	)
-	return cmd.Output()
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("%v: %w", cmd, err)
+	}
+	return out, nil
 }
 
 func ParseOutput(raw []byte) (*Output, error) {

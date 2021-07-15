@@ -22,14 +22,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/algorand/go-algorand/layer2"
 	"io"
 	"math"
 	"net"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -54,7 +53,6 @@ import (
 
 const maxTealSourceBytes = 1e5
 const maxTealDryrunBytes = 1e5
-const maxAlgoClaritySourceBytes = 1e5
 const maxAlgoClarityBatchBytes = 1e6
 
 var prof *util.Profiler
@@ -247,7 +245,7 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 		}
 	}
 	kenv := kalgoEnv(ctx.Request(), token)
-	if err = dircopy(current, kenv.SourcePrefix); err != nil {
+	if err = util.CopyFolder(current, kenv.SourcePrefix); err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
@@ -269,161 +267,21 @@ var (
 	kNode        = "node"
 	kKalgoTotal  = "kalgo"
 	kCopyOnWrite = "cow"
+	kVRF         = "vrf"
 )
-
-func createContract(name, source string, ledger *data.SpeculationLedger, kenv kalgo.Env, sender basics.Address) (*kalgo.Output, basics.Address, error) {
-	addr := basics.Address(crypto.Hash([]byte(source)))
-
-	cmd := &kalgo.InitCmd{
-		Cmd: kalgo.Cmd{
-//			Address: addr,
-			Name:    name,
-			Sender:  sender,
-		},
-		Source: source,
-	}
-
-	out, err := executeVM(kenv, cmd, ledger)
-	if err != nil {
-		return nil, addr, err
-	}
-
-	/*
-		tx := transactions.Transaction{
-			Type: protocol.ApplicationCallTx,
-			Header: transactions.Header{
-				Sender:      addr,
-				Fee:         basics.MicroAlgos{Raw: 10000},
-				FirstValid:  ledger.Latest(),
-				LastValid:   ledger.Latest() + 1000,
-				//GenesisHash: ledger.GenesisHash,
-			},
-			ApplicationCallTxnFields: transactions.ApplicationCallTxnFields{
-				ApplicationID: basics.AppIndex(-1), // todo
-				ApplicationArgs: [][]byte{[]byte(""), []byte(out.Commitments[0].NewCommitment)},
-			},
-		}
-		// sign from sender
-		ledger.Apply()
-	*/
-
-	return out, addr, nil
-}
-
-func callContract(addr basics.Address, name, function, args string, sender basics.Address, kenv kalgo.Env, ledger *data.SpeculationLedger) (*kalgo.Output, error) {
-	cmd := &kalgo.CallCmd{
-		Cmd: kalgo.Cmd{
-//			Address: addr,
-			Name:    name,
-			Sender:  sender,
-		},
-		Function: function,
-		Args:     args,
-	}
-	return executeVM(kenv, cmd, ledger)
-}
-
-// CreateContract creates an AlgoClarity contract.
-// (POST /v2/contract/{name})
-func (v2 *Handlers) CreateContract(ctx echo.Context, name string, params generated.CreateContractParams) error {
-	prof.Start(kNode)
-	defer prof.Stop()
-
-	if params.Speculation == nil {
-		err := errors.New("speculation token required (for now)")
-		return badRequest(ctx, err, err.Error(), v2.Log)
-	}
-	ledger, err := v2.Node.SpeculationLedger(*params.Speculation)
-	if err != nil {
-		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
-	}
-	buf := new(bytes.Buffer)
-	ctx.Request().Body = http.MaxBytesReader(nil, ctx.Request().Body, maxAlgoClaritySourceBytes)
-	buf.ReadFrom(ctx.Request().Body)
-
-	var sender basics.Address
-	if params.Sender != nil {
-		err = sender.UnmarshalText([]byte(*params.Sender))
-		if err != nil {
-			return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-		}
-	}
-
-	kenv := kalgoEnv(ctx.Request(), *params.Speculation)
-	out, addr, err := createContract(name, buf.String(), ledger, kenv, sender)
-	if err != nil {
-		return internalError(ctx, err, err.Error(), v2.Log)
-	}
-	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
-		Base:        uint64(ledger.Latest()),
-		Checkpoints: &ledger.Checkpoints,
-		Token:       *params.Speculation,
-		Commitments: out.Commitments,
-		Address:     addr.GetUserAddress(),
-		TotalTime:   prof.ElapsedTotal(),
-		NodeTime:    prof.Elapsed(kNode),
-		KalgoTime:   prof.Elapsed(kKalgoTotal),
-		DbTime:      prof.Elapsed(kCopyOnWrite),
-	})
-}
-
-// Calls a function on a previously initialized contract.
-// (POST /v2/contracts/{name}/call/{function})
-func (v2 *Handlers) CallContract(ctx echo.Context, name string, function string, params generated.CallContractParams) error {
-	prof.Start(kNode)
-	defer prof.Stop()
-	if params.Speculation == nil {
-		err := errors.New("speculation token required (for now)")
-		return badRequest(ctx, err, err.Error(), v2.Log)
-	}
-	speculation := *params.Speculation
-	ledger, err := v2.Node.SpeculationLedger(speculation)
-	if err != nil {
-		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
-	}
-
-	var addr basics.Address
-	if params.Address != nil {
-		err = addr.UnmarshalText([]byte(*params.Address))
-		if err != nil {
-			return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-		}
-	}
-
-	var sender basics.Address
-	if params.Sender != nil {
-		err = sender.UnmarshalText([]byte(*params.Sender))
-		if err != nil {
-			return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-		}
-	}
-
-	args := ""
-	if params.Args != nil {
-		args = *params.Args
-	}
-	kenv := kalgoEnv(ctx.Request(), speculation)
-	out, err := callContract(addr, name, function, args, sender, kenv, ledger)
-	if err != nil {
-		return internalError(ctx, err, err.Error(), v2.Log)
-	}
-	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
-		Base:        uint64(ledger.Latest()),
-		Checkpoints: &ledger.Checkpoints,
-		Token:       speculation,
-		Commitments: out.Commitments,
-		TotalTime:   prof.ElapsedTotal(),
-		NodeTime:    prof.Elapsed(kNode),
-		KalgoTime:   prof.Elapsed(kKalgoTotal),
-		DbTime:      prof.Elapsed(kCopyOnWrite),
-	})
-}
 
 type cmdDiscriminator struct {
 	Command string `json:"command"`
 }
 
-func decodeBatch(data []byte) ([]interface{}, error) {
+func parseOptionalAddress(s *string) (addr basics.Address, err error) {
+	if s != nil {
+		addr, err = basics.UnmarshalChecksumAddress(*s)
+	}
+	return
+}
+
+func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
 	// FIXME[zach]: I haven't been able to get go-swagger to generate the right interface for a
 	// heterogeneous list (perhaps we are using an old version?). The parsing here is kind of gnarly,
 	// but is intended to somewhat mirror what go-swagger supposedly expects. We decode the data twice.
@@ -439,7 +297,7 @@ func decodeBatch(data []byte) ([]interface{}, error) {
 	if err := decode(protocol.JSONHandle, data, &rawCmds); err != nil {
 		return nil, err
 	}
-	ret := make([]interface{}, len(rawCmds))
+	items := make([]*layer2.BatchItem, len(rawCmds))
 	for i, discrim := range discrims {
 		switch discrim.Command {
 		case "init":
@@ -447,19 +305,33 @@ func decodeBatch(data []byte) ([]interface{}, error) {
 			if err := decode(protocol.JSONHandle, rawCmds[i], &init); err != nil {
 				return nil, err
 			}
-			ret[i] = init
+
+			sender, err := parseOptionalAddress(init.Sender)
+			if err != nil {
+				return nil, err
+			}
+			items[i] = layer2.NewInitBatchItem(init.Id, init.Source, sender)
 		case "call":
 			var call generated.ContractCall
 			if err := decode(protocol.JSONHandle, rawCmds[i], &call); err != nil {
 				return nil, err
 			}
-			ret[i] = call
+			addr, err := parseOptionalAddress(call.Address)
+			if err != nil {
+				return nil, err
+			}
+			sender, err := parseOptionalAddress(call.Sender)
+			if err != nil {
+				return nil, err
+			}
+			items[i] = layer2.NewCallBatchItem(call.Id, call.Function, call.Args, addr, sender)
 		default:
 			return nil, errors.New(fmt.Sprintf("item in batch missing command descriminator (index %d)", i))
 		}
 	}
-	return ret, nil
+	return items, nil
 }
+
 
 // Calls a function on a previously initialized contract.
 // (POST /v2/contracts/batch)
@@ -467,6 +339,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	prof = util.NewProfiler()
 	prof.Start(kNode)
 	defer prof.Stop()
+
 	if params.Speculation == nil {
 		err := errors.New("speculation token required (for now)")
 		return badRequest(ctx, err, err.Error(), v2.Log)
@@ -477,97 +350,50 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
 
+	voteAcct, err := basics.UnmarshalChecksumAddress("GMG6Q4YQSUN4RP3FSHAGDWQQIEPYZB6DSZ62TT3AXUJOGOJYYFTK4EICQA")
+	if err != nil {
+		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
+	}
+	voteAcctData, err := ledger.LookupLatest(voteAcct)
+	if err != nil {
+		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
+	}
+
+	prof.Start(kNode)
 	req := ctx.Request()
 	buf := new(bytes.Buffer)
 	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClarityBatchBytes)
 	buf.ReadFrom(req.Body)
 	data := buf.Bytes()
 
-	gcmds, err := decodeBatch(data)
+	batch, err := decodeBatch(data)
 	if err != nil {
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
 
+	// Parsing done---start Layer 2 work.
+	prof.Start(kVRF)
+	layer2.ComputeWeight(voteAcct, voteAcctData)
+
 	kenv := kalgoEnv(ctx.Request(), speculation)
-	var commits []generated.ContractCommitment
-	for _, gcmd := range gcmds {
-		prof.Start(kNode)
-		var out *kalgo.Output
-		if init, ok := gcmd.(generated.ContractInit); ok {
-			var sender basics.Address
-			if init.Sender != nil {
-				err = sender.UnmarshalText([]byte(*init.Sender))
-				if err != nil {
-					return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-				}
-			}
-			out, _, err = createContract(init.Id, init.Source, ledger, kenv, sender)
-		} else if call, ok := gcmd.(generated.ContractCall); ok {
-			var addr, sender basics.Address
-			if call.Sender != nil {
-				sender, err = basics.UnmarshalChecksumAddress(*call.Sender)
-				if err != nil {
-					return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-				}
-			}
-			if call.Address != nil {
-				addr, err = basics.UnmarshalChecksumAddress(*call.Address)
-				if err != nil {
-					return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-				}
-			}
-			out, err = callContract(addr, call.Id, call.Function, call.Args, sender, kenv, ledger)
-		} else {
-			err = errors.New("unknown command type returned from decodeBatch()")
+	ex := layer2.NewExecutor(ledger, kenv)
+
+	for _, item := range batch {
+		if err := ex.Execute(item, prof); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
-		if err != nil {
-			return internalError(ctx, err, err.Error(), v2.Log)
-		}
-		commits = append(commits, out.Commitments...)
 	}
+	// TODO: return transactions added to ledger
 	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
-		Commitments: commits,
 		Token:       speculation,
 		TotalTime:   prof.ElapsedTotal(),
 		NodeTime:    prof.Elapsed(kNode),
+		VrfTime:     prof.Elapsed(kVRF),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
 		DbTime:      prof.Elapsed(kCopyOnWrite),
 	})
-}
-
-func executeVM(kenv kalgo.Env, cmd kalgo.Runner, ledger *data.SpeculationLedger) (*kalgo.Output, error) {
-	prof.Start(kKalgoTotal)
-	rawout, err := cmd.Run(kenv)
-	if err != nil {
-		return nil, err
-	}
-
-	prof.Start(kNode)
-	out, err := kalgo.ParseOutput(rawout)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = ledger.Checkpoint(); err != nil {
-		return nil, err
-	}
-
-	prof.Start(kCopyOnWrite)
-	for _, commit := range out.Commitments {
-		if commit.PreviousCommitment == commit.NewCommitment {
-			continue
-		}
-		src := path.Join(kenv.SourcePrefix, commit.Contract)
-		dst := path.Join(kenv.SourcePrefix, "..", strconv.Itoa(len(ledger.Checkpoints)), commit.Contract)
-		if err = dircopy(src, dst); err != nil {
-			return nil, err
-		}
-	}
-	prof.Start(kNode)
-	return out, nil
 }
 
 // Perform operations on a speculation object.

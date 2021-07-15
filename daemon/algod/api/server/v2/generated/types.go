@@ -687,6 +687,9 @@ type SpeculationResponse struct {
 
 	// The total elapsed time in milliseconds to handle the request
 	TotalTime uint64 `json:"total_time"`
+
+	// The elapsed time in milliseconds spent in kalgo to handle the request
+	VrfTime uint64 `json:"vrf_time"`
 }
 
 // SupplyResponse defines model for SupplyResponse.
@@ -785,25 +788,6 @@ type ContractBatchExecuteParams struct {
 
 	// The speculative context in which to perform the query or operation.
 	Speculation *string `json:"speculation,omitempty"`
-}
-
-// CreateContractParams defines parameters for CreateContract.
-type CreateContractParams struct {
-	Sender  *string `json:"sender,omitempty"`
-	Address *string `json:"address,omitempty"`
-
-	// The speculative context in which to perform the query or operation.
-	Speculation *string `json:"speculation,omitempty"`
-}
-
-// CallContractParams defines parameters for CallContract.
-type CallContractParams struct {
-
-	// The speculative context in which to perform the query or operation.
-	Speculation *string `json:"speculation,omitempty"`
-	Sender      *string `json:"sender,omitempty"`
-	Address     *string `json:"address,omitempty"`
-	Args        *string `json:"args,omitempty"`
 }
 
 // TealDryrunJSONBody defines parameters for TealDryrun.

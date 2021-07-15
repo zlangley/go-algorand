@@ -19,10 +19,7 @@ package v2
 import (
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os"
-	"path"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -268,6 +265,7 @@ func convertToDeltas(txn node.TxnWithStatus) (*[]generated.AccountStateDelta, *g
 
 	return localStateDelta, stateDeltaToStateDelta(txn.ApplyData.EvalDelta.GlobalDelta)
 }
+<<<<<<< HEAD
 
 <<<<<<< HEAD
 // printableUTF8OrEmpty checks to see if the entire string is a UTF8 printable string.
@@ -331,3 +329,5 @@ func dircopy(src, dst string) error {
 >>>>>>> 98ddf07a (Copy kalgo prefix on write)
 =======
 >>>>>>> 9f15ea3a (Add some basic profiling)
+=======
+>>>>>>> 9d7c4716 (Refactor)
