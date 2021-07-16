@@ -25,6 +25,9 @@ type Account struct {
 	// Note the raw object uses `map[int] -> AppLocalState` for this type.
 	AppsLocalState *[]ApplicationLocalState `json:"apps-local-state,omitempty"`
 
+	// \[teap\] the sum of all extra application program pages for this account.
+	AppsTotalExtraPages *uint64 `json:"apps-total-extra-pages,omitempty"`
+
 	// Specifies maximums on the number of each type that may be stored.
 	AppsTotalSchema *ApplicationStateSchema `json:"apps-total-schema,omitempty"`
 
@@ -136,6 +139,9 @@ type ApplicationParams struct {
 	// The address that created this application. This is the address where the parameters and global state for this application can be found.
 	Creator string `json:"creator"`
 
+	// \[epp\] the amount of extra program pages available to this app.
+	ExtraProgramPages *uint64 `json:"extra-program-pages,omitempty"`
+
 	// Represents a key-value store for use in an application.
 	GlobalState *TealKeyValueStore `json:"global-state,omitempty"`
 
@@ -211,8 +217,11 @@ type AssetParams struct {
 	// \[am\] A commitment to some unspecified asset metadata. The format of this metadata is up to the application.
 	MetadataHash *[]byte `json:"metadata-hash,omitempty"`
 
-	// \[an\] Name of this asset, as supplied by the creator.
+	// \[an\] Name of this asset, as supplied by the creator. Included only when the asset name is composed of printable utf-8 characters.
 	Name *string `json:"name,omitempty"`
+
+	// \[an64\] base64 encoded name of this asset, as supplied by the creator.
+	NameB64 *string `json:"name_b64,omitempty"`
 
 	// \[r\] Address of account holding reserve (non-minted) units of this asset.
 	Reserve *string `json:"reserve,omitempty"`
@@ -220,11 +229,17 @@ type AssetParams struct {
 	// \[t\] The total number of units of this asset.
 	Total uint64 `json:"total"`
 
-	// \[un\] Name of a unit of this asset, as supplied by the creator.
+	// \[un\] Name of a unit of this asset, as supplied by the creator. Included only when the name of a unit of this asset is composed of printable utf-8 characters.
 	UnitName *string `json:"unit-name,omitempty"`
 
-	// \[au\] URL where more information about the asset can be retrieved.
+	// \[un64\] base64 encoded name of a unit of this asset, as supplied by the creator.
+	UnitNameB64 *string `json:"unit-name_b64,omitempty"`
+
+	// \[au\] URL where more information about the asset can be retrieved. Included only when the URL is composed of printable utf-8 characters.
 	Url *string `json:"url,omitempty"`
+
+	// \[au64\] base64 encoded URL where more information about the asset can be retrieved.
+	UrlB64 *string `json:"url_b64,omitempty"`
 }
 
 // BuildVersion defines model for BuildVersion.

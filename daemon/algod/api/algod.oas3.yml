@@ -756,6 +756,10 @@
             },
             "type": "array"
           },
+          "apps-total-extra-pages": {
+            "description": "\\[teap\\] the sum of all extra application program pages for this account.",
+            "type": "integer"
+          },
           "apps-total-schema": {
             "$ref": "#/components/schemas/ApplicationStateSchema"
           },
@@ -941,6 +945,10 @@
             "type": "string",
             "x-algorand-format": "Address"
           },
+          "extra-program-pages": {
+            "description": "\\[epp\\] the amount of extra program pages available to this app.",
+            "type": "integer"
+          },
           "global-state": {
             "$ref": "#/components/schemas/TealKeyValueStore"
           },
@@ -1059,8 +1067,13 @@
             "type": "string"
           },
           "name": {
-            "description": "\\[an\\] Name of this asset, as supplied by the creator.",
+            "description": "\\[an\\] Name of this asset, as supplied by the creator. Included only when the asset name is composed of printable utf-8 characters.",
             "type": "string"
+          },
+          "name_b64": {
+            "description": "\\[an64\\] base64 encoded name of this asset, as supplied by the creator.",
+            "type": "string",
+            "x-algorand-format": "base64"
           },
           "reserve": {
             "description": "\\[r\\] Address of account holding reserve (non-minted) units of this asset.",
@@ -1072,12 +1085,22 @@
             "x-algorand-format": "uint64"
           },
           "unit-name": {
-            "description": "\\[un\\] Name of a unit of this asset, as supplied by the creator.",
+            "description": "\\[un\\] Name of a unit of this asset, as supplied by the creator. Included only when the name of a unit of this asset is composed of printable utf-8 characters.",
             "type": "string"
           },
+          "unit-name_b64": {
+            "description": "\\[un64\\] base64 encoded name of a unit of this asset, as supplied by the creator.",
+            "type": "string",
+            "x-algorand-format": "base64"
+          },
           "url": {
-            "description": "\\[au\\] URL where more information about the asset can be retrieved.",
+            "description": "\\[au\\] URL where more information about the asset can be retrieved. Included only when the URL is composed of printable utf-8 characters.",
             "type": "string"
+          },
+          "url_b64": {
+            "description": "\\[au64\\] base64 encoded URL where more information about the asset can be retrieved.",
+            "type": "string",
+            "x-algorand-format": "base64"
           }
         },
         "required": [
