@@ -7,30 +7,53 @@ import (
 	"github.com/algorand/go-algorand/data/committee"
 	"github.com/algorand/go-algorand/data/committee/sortition"
 	"github.com/algorand/go-algorand/protocol"
+	"math/rand"
 )
 
-type simulationSelector struct{}
+type (
+	// step is a sequence number denoting distinct stages in Algorand
+	period uint64
 
-func (sel simulationSelector) ToBeHashed() (protocol.HashID, []byte) {
-	return protocol.AgreementSelector, protocol.EncodeReflect(&sel)
+	// period is used to track progress with a given round in the protocol
+	step uint64
+)
+
+type selector struct {
+	_struct struct{} `codec:""` // not omitempty
+
+	Seed   committee.Seed `codec:"seed"`
+	Round  basics.Round   `codec:"rnd"`
+	Period period         `codec:"per"`
+	Step   step           `codec:"step"`
 }
 
-func (sel simulationSelector) CommitteeSize(proto config.ConsensusParams) uint64 {
-	return 1000
+func (sel selector) ToBeHashed() (protocol.HashID, []byte) {
+	return protocol.ExecutionSelector, protocol.EncodeReflect(&sel)
 }
 
-func ComputeWeight(acct basics.Address, acctData basics.AccountData) uint64 {
-	sel := simulationSelector{}
-	m := committee.Membership{
-		Record:     committee.BalanceRecord{Addr: acct, AccountData: acctData},
-		Selector:   sel,
-		TotalMoney: basics.MicroAlgos{Raw: 10000000},
-	}
-	_, secret := crypto.VrfKeygen()
-	u := committee.MakeCredential(&secret, sel)
-	cred, _ := u.Verify(config.Consensus[protocol.ConsensusCurrentVersion], m)
+func (sel selector) CommitteeSize(proto config.ConsensusParams) uint64 {
+	return 140
+}
 
-	_, vrfOut := acctData.SelectionID.Verify(cred.Proof, m.Selector)
-	h := crypto.Hash(append(vrfOut[:], acct[:]...))
-	return sortition.Select(1000, 1000000000, 10000, h)
+func ComputeWeight() (uint64, error) {
+	var voterMoney uint64 = 200
+	var totalMoney uint64 = 10000000
+
+	proto := config.Consensus[protocol.ConsensusCurrentVersion]
+
+	gen := rand.New(rand.NewSource(2))
+	var seed crypto.Seed
+	gen.Read(seed[:])
+	s := crypto.GenerateSignatureSecrets(seed)
+	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
+
+	sel := selector{}
+	// This should happen once per round.
+	cred := committee.MakeCredential(&vrfSec, sel)
+
+	_, vrfOut := vrfPub.Verify(cred.Proof, sel)
+
+	h := crypto.Hash(append(vrfOut[:], s.SignatureVerifier[:]...))
+	weight := sortition.Select(voterMoney, totalMoney, float64(sel.CommitteeSize(proto)), h)
+	return weight, nil
 }

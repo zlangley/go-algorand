@@ -2,6 +2,8 @@ package layer2
 
 import (
 	"fmt"
+	"github.com/algorand/go-algorand/data/transactions"
+	"github.com/algorand/go-algorand/protocol"
 	"github.com/algorand/go-algorand/util"
 	"path"
 	"strconv"
@@ -22,6 +24,7 @@ const (
 type BatchItem struct {
 	kind   batchItemKind
 	runner kalgo.Runner
+	sender basics.Address
 }
 
 func NewInitBatchItem(name, source string, sender basics.Address) *BatchItem {
@@ -38,8 +41,8 @@ func NewInitBatchItem(name, source string, sender basics.Address) *BatchItem {
 			},
 			Source: source,
 		},
+		sender: sender,
 	}
-
 }
 
 func NewCallBatchItem(name, function, args string, addr, sender basics.Address) *BatchItem {
@@ -54,6 +57,7 @@ func NewCallBatchItem(name, function, args string, addr, sender basics.Address) 
 			Function: function,
 			Args:     args,
 		},
+		sender: sender,
 	}
 }
 
@@ -75,9 +79,9 @@ func NewExecutor(ledger *data.SpeculationLedger, kenv kalgo.Env) *Executor {
 	}
 }
 
-func (ex *Executor) Execute(batchItem *BatchItem, prof *util.Profiler) error {
+func (ex *Executor) Execute(item *BatchItem, prof *util.Profiler) error {
 	prof.Start("kalgo")
-	rawout, err := batchItem.runner.Run(ex.kenv)
+	rawout, err := item.runner.Run(ex.kenv)
 	if err != nil {
 		return fmt.Errorf("running kalgo: %w", err)
 	}
@@ -96,25 +100,8 @@ func (ex *Executor) Execute(batchItem *BatchItem, prof *util.Profiler) error {
 		if commit.PreviousCommitment == commit.NewCommitment {
 			continue
 		}
-		// TODO: add commitment to the ledger
-		/*
-		tx := transactions.Transaction{
-			Type: protocol.ApplicationCallTx,
-			Header: transactions.Header{
-				Sender:      addr,
-				Fee:         basics.MicroAlgos{Raw: 10000},
-				FirstValid:  ledger.Latest(),
-				LastValid:   ledger.Latest() + 1000,
-				//GenesisHash: ledger.GenesisHash,
-			},
-			ApplicationCallTxnFields: transactions.ApplicationCallTxnFields{
-				ApplicationID: basics.AppIndex(-1), // todo
-				ApplicationArgs: [][]byte{[]byte(""), []byte(out.Commitments[0].NewCommitment)},
-			},
-		}
-		// sign from sender
-		ledger.Apply()
-		 */
+
+		//ex.addCommitmentCheckTx([]byte(commit.PreviousCommitment), []byte(commit.NewCommitment), item.sender)
 
 		prof.Start("cow")
 		if err = ex.copyContract(commit.Contract); err != nil {
@@ -129,4 +116,54 @@ func (ex *Executor) copyContract(contract string) error {
 	src := path.Join(ex.kenv.SourcePrefix, contract)
 	dst := path.Join(ex.kenv.SourcePrefix, "..", strconv.Itoa(len(ex.ledger.Checkpoints)), contract)
 	return util.CopyFolder(src, dst)
+}
+
+var CommitmentAppIndex basics.AppIndex = 19841517
+//var CommitmentMapAddress = "Z72YSHBKWQMW66SGB6WHH6VOK46KDSTJZ2NZJPRXQG4RK6U2Y62ZNR6FJY"
+
+func (ex *Executor) addCommitmentAppOptInTxn(commitment []byte, sender basics.Address) {
+	tx := transactions.Transaction{
+		Type: protocol.ApplicationCallTx,
+		Header: transactions.Header{
+			Sender:      sender,
+			Fee:         basics.MicroAlgos{Raw: 10000},
+			FirstValid:  ex.ledger.Latest(),
+			LastValid:   ex.ledger.Latest() + 1000,
+			//GenesisHash: ledger.GenesisHash,
+		},
+		ApplicationCallTxnFields: transactions.ApplicationCallTxnFields{
+			ApplicationID: CommitmentAppIndex,
+			ApplicationArgs: [][]byte{commitment},
+			OnCompletion: transactions.OptInOC,
+		},
+	}
+/*	stx := transactions.SignedTxn{
+		Txn: tx,
+		Lsig: transactions.LogicSig{
+			Logic:
+		}
+	}*/
+	// TODO: sign from execution committee
+	stx := tx.Sign(nil)
+	ex.ledger.Apply([]transactions.SignedTxn{stx})
+}
+
+func (ex *Executor) addCommitmentAppCallTxn(prev, new []byte, sender basics.Address) {
+	tx := transactions.Transaction{
+		Type: protocol.ApplicationCallTx,
+		Header: transactions.Header{
+			Sender:      sender,
+			Fee:         basics.MicroAlgos{Raw: 10000},
+			FirstValid:  ex.ledger.Latest(),
+			LastValid:   ex.ledger.Latest() + 1000,
+			//GenesisHash: ledger.GenesisHash,
+		},
+		ApplicationCallTxnFields: transactions.ApplicationCallTxnFields{
+			ApplicationID: CommitmentAppIndex,
+			ApplicationArgs: [][]byte{prev, new},
+		},
+	}
+	// TODO: sign from execution committee
+	stx := tx.Sign(nil)
+	ex.ledger.Apply([]transactions.SignedTxn{stx})
 }

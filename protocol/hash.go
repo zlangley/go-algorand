@@ -36,6 +36,7 @@ const (
 	BlockHeader       HashID = "BH"
 	BalanceRecord     HashID = "BR"
 	Credential        HashID = "CR"
+	ExecutionSelector HashID = "ES"
 	Genesis           HashID = "GE"
 	MerkleArrayNode   HashID = "MA"
 	Message           HashID = "MX"

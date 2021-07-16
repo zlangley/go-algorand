@@ -350,15 +350,6 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 	}
 
-	voteAcct, err := basics.UnmarshalChecksumAddress("GMG6Q4YQSUN4RP3FSHAGDWQQIEPYZB6DSZ62TT3AXUJOGOJYYFTK4EICQA")
-	if err != nil {
-		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-	}
-	voteAcctData, err := ledger.LookupLatest(voteAcct)
-	if err != nil {
-		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
-	}
-
 	prof.Start(kNode)
 	req := ctx.Request()
 	buf := new(bytes.Buffer)
@@ -373,8 +364,12 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 
 	// Parsing done---start Layer 2 work.
 	prof.Start(kVRF)
-	layer2.ComputeWeight(voteAcct, voteAcctData)
+	_, err = layer2.ComputeWeight()
+	if err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
+	}
 
+	prof.Start(kNode)
 	kenv := kalgoEnv(ctx.Request(), speculation)
 	ex := layer2.NewExecutor(ledger, kenv)
 

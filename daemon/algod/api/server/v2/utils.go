@@ -265,9 +265,7 @@ func convertToDeltas(txn node.TxnWithStatus) (*[]generated.AccountStateDelta, *g
 
 	return localStateDelta, stateDeltaToStateDelta(txn.ApplyData.EvalDelta.GlobalDelta)
 }
-<<<<<<< HEAD
 
-<<<<<<< HEAD
 // printableUTF8OrEmpty checks to see if the entire string is a UTF8 printable string.
 // If this is the case, the string is returned as is. Otherwise, the empty string is returned.
 func printableUTF8OrEmpty(in string) string {
@@ -281,53 +279,3 @@ func printableUTF8OrEmpty(in string) string {
 	}
 	return in
 }
-=======
-func filecopy(src, dst string) error {
-	stat, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	contents, err := ioutil.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(dst, contents, stat.Mode())
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func dircopy(src, dst string) error {
-	srcinfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	if err = os.MkdirAll(dst, srcinfo.Mode()); err != nil {
-		return err
-	}
-	fds, err := ioutil.ReadDir(src)
-	if err != nil {
-		return err
-	}
-	for _, fd := range fds {
-		cursrc := path.Join(src, fd.Name())
-		curdst := path.Join(dst, fd.Name())
-
-		if fd.IsDir() {
-			err = dircopy(cursrc, curdst)
-		} else {
-			err = filecopy(cursrc, curdst)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-<<<<<<< HEAD
->>>>>>> 98ddf07a (Copy kalgo prefix on write)
-=======
->>>>>>> 9f15ea3a (Add some basic profiling)
-=======
->>>>>>> 9d7c4716 (Refactor)
