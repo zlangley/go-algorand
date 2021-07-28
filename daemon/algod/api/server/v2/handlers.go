@@ -332,7 +332,6 @@ func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
 	return items, nil
 }
 
-
 // Calls a function on a previously initialized contract.
 // (POST /v2/contracts/batch)
 func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
@@ -378,17 +377,33 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 	}
-	// TODO: return transactions added to ledger
-	return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
+
+	response := struct {
+		Base        uint64                     `codec:"base"`
+		Checkpoints *[]uint64                  `codec:"checkpoints,omitempty"`
+		Token       string                     `codec:"token"`
+		Txns        [][]transactions.SignedTxn `codec:"txns"`
+		TotalTime   uint64                     `codec:"total_time"`
+		NodeTime    uint64                     `codec:"node_time"`
+		VrfTime     uint64                     `codec:"vrf_time"`
+		KalgoTime   uint64                     `codec:"kalgo_time"`
+		DbTime      uint64                     `codec:"db_time"`
+	}{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
+		Txns:        ledger.TransactionBatch(),
 		TotalTime:   prof.ElapsedTotal(),
 		NodeTime:    prof.Elapsed(kNode),
 		VrfTime:     prof.Elapsed(kVRF),
 		KalgoTime:   prof.Elapsed(kKalgoTotal),
 		DbTime:      prof.Elapsed(kCopyOnWrite),
-	})
+	}
+	data, err = encode(protocol.JSONHandle, response)
+	if err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
+	}
+	return ctx.Blob(http.StatusOK, "application/json", data)
 }
 
 // Perform operations on a speculation object.

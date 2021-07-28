@@ -24,7 +24,6 @@ type selector struct {
 	Seed   committee.Seed `codec:"seed"`
 	Round  basics.Round   `codec:"rnd"`
 	Period period         `codec:"per"`
-	Step   step           `codec:"step"`
 }
 
 func (sel selector) ToBeHashed() (protocol.HashID, []byte) {
@@ -47,7 +46,9 @@ func ComputeWeight() (uint64, error) {
 	s := crypto.GenerateSignatureSecrets(seed)
 	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
 
-	sel := selector{}
+	sel := selector{
+		Round: 1,
+	}
 	// This should happen once per round.
 	cred := committee.MakeCredential(&vrfSec, sel)
 

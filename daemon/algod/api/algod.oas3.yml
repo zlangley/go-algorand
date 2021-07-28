@@ -659,6 +659,17 @@
                   "description": "The total elapsed time in milliseconds to handle the request",
                   "type": "integer"
                 },
+                "txns": {
+                  "items": {
+                    "items": {
+                      "properties": {},
+                      "type": "object",
+                      "x-algorand-format": "SignedTransaction"
+                    },
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
                 "vrf_time": {
                   "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
                   "type": "integer"
@@ -673,6 +684,7 @@
                 "node_time",
                 "token",
                 "total_time",
+                "txns",
                 "vrf_time"
               ],
               "type": "object"
@@ -2328,6 +2340,17 @@
                       "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
+                    "txns": {
+                      "items": {
+                        "items": {
+                          "properties": {},
+                          "type": "object",
+                          "x-algorand-format": "SignedTransaction"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    },
                     "vrf_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
                       "type": "integer"
@@ -2342,6 +2365,7 @@
                     "node_time",
                     "token",
                     "total_time",
+                    "txns",
                     "vrf_time"
                   ],
                   "type": "object"
@@ -2768,6 +2792,17 @@
                       "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
+                    "txns": {
+                      "items": {
+                        "items": {
+                          "properties": {},
+                          "type": "object",
+                          "x-algorand-format": "SignedTransaction"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    },
                     "vrf_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
                       "type": "integer"
@@ -2782,6 +2817,7 @@
                     "node_time",
                     "token",
                     "total_time",
+                    "txns",
                     "vrf_time"
                   ],
                   "type": "object"
@@ -3055,6 +3091,17 @@
                       "description": "The total elapsed time in milliseconds to handle the request",
                       "type": "integer"
                     },
+                    "txns": {
+                      "items": {
+                        "items": {
+                          "properties": {},
+                          "type": "object",
+                          "x-algorand-format": "SignedTransaction"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    },
                     "vrf_time": {
                       "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
                       "type": "integer"
@@ -3069,6 +3116,7 @@
                     "node_time",
                     "token",
                     "total_time",
+                    "txns",
                     "vrf_time"
                   ],
                   "type": "object"

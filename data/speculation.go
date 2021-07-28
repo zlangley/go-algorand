@@ -25,11 +25,10 @@ import (
 	"github.com/algorand/go-algorand/protocol"
 )
 
-// A SpeculationLedger adapts a BlockEvaluator to the Ledger interface
-// (and provides access to the BlockEvalutor's ability to execute
-// trasnactions) This means we can write code that expects a Ledger to
-// report on balances and such as we go.
-
+// A SpeculationLedger provides speculative execution on top of a Ledger.
+//
+// Effectively, a SpeculationLedger adapts a ledger.BlockEvaluator to the
+// Ledger interface.
 type SpeculationLedger struct {
 	baseLedger  *Ledger
 	baseRound   basics.Round
@@ -128,6 +127,9 @@ func (sl *SpeculationLedger) Commit() error {
 }
 
 func (sl *SpeculationLedger) CommitStack() error {
+	if sl.txnStack == nil {
+		return nil
+	}
 	var group transactions.TxGroup
 	stxns := bookkeeping.SignedTxnGroupsFlatten(sl.txnStack)
 	for _, stxn := range stxns {
@@ -137,11 +139,15 @@ func (sl *SpeculationLedger) CommitStack() error {
 	for i := range stxns {
 		stxns[i].Txn.Group = groupHash
 	}
-	err := sl.Evaluator.TransactionGroup(stxns)
-	if err != nil {
-		return err
-	}
 	sl.txnBatch = append(sl.txnBatch, stxns)
 	sl.txnStack = nil
-	return nil
+	return sl.start()
+}
+
+func (sl *SpeculationLedger) TransactionBatch() [][]transactions.SignedTxn {
+	return sl.txnBatch
+}
+
+func (sl *SpeculationLedger) GenesisHash() crypto.Digest {
+	return sl.baseLedger.GenesisHash()
 }

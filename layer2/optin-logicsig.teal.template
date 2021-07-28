@@ -1,0 +1,13 @@
+#pragma version 4
+
+bytecblock b32 {{ . }}
+
+txn OnCompletion
+int OptIn
+==
+
+txn ApplicationID
+int 19841517
+==
+
+&&

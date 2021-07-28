@@ -1,0 +1,19 @@
+#pragma version 4
+
+bytecblock b32 {{ . }}
+
+txn GroupIndex
+int 1
+-
+gtxns ApplicationID
+int 20189847
+==
+
+txn GroupIndex
+int 1
+-
+gtxns OnCompletion
+int NoOp
+==
+
+&&

@@ -95,6 +95,9 @@ func init() {
 	// application.go
 	rootCmd.AddCommand(appCmd)
 
+	// speculation.go
+	rootCmd.AddCommand(speculationCmd)
+
 	// Config
 	defaultDataDirValue := []string{""}
 	rootCmd.PersistentFlags().StringArrayVarP(&dataDirs, "datadir", "d", defaultDataDirValue, "Data directory for the node")
