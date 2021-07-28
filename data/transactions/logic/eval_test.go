@@ -941,6 +941,7 @@ func TestGlobal(t *testing.T) {
 			CreatorAddress, globalV5TestProgram,
 			EvalStateful, CheckStateful,
 		},
+		6: { GroupID, globalV5TestProgram, Eval, Check },
 	}
 	ledger := makeTestLedger(nil)
 	ledger.appID = 42

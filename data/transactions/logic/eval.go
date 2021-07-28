@@ -2232,6 +2232,14 @@ func (cx *evalContext) getCreatorAddress() ([]byte, error) {
 	return addr[:], nil
 }
 
+func (cx *evalContext) getGroupID() ([]byte, error) {
+	// FIXME: Should we error or return empty byte array?
+	if cx.TxnGroup == nil {
+		return nil, fmt.Errorf("no transaction group")
+	}
+	return cx.Txn.Txn.Group[:], nil
+}
+
 var zeroAddress basics.Address
 
 func (cx *evalContext) globalFieldToStack(field GlobalField) (sv stackValue, err error) {
@@ -2256,6 +2264,8 @@ func (cx *evalContext) globalFieldToStack(field GlobalField) (sv stackValue, err
 		sv.Uint, err = cx.getApplicationID()
 	case CreatorAddress:
 		sv.Bytes, err = cx.getCreatorAddress()
+	case GroupID:
+		sv.Bytes, err = cx.getGroupID()
 	default:
 		err = fmt.Errorf("invalid global[%d]", field)
 	}

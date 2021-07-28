@@ -390,6 +390,7 @@ var globalFieldDocs = map[string]string{
 	"LatestTimestamp":      "Last confirmed block UNIX timestamp. Fails if negative",
 	"CurrentApplicationID": "ID of current application executing. Fails if no such application is executing",
 	"CreatorAddress":       "Address of the creator of the current application. Fails if no such application is executing",
+	"GroupID":              "Address of the transaction group.",
 }
 
 // GlobalFieldDocs are notes on fields available in `global` with extra versioning info if any
