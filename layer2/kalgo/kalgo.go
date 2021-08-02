@@ -133,13 +133,15 @@ func ParseOutput(raw []byte) (*Output, error) {
 		if len(split) < 4 {
 			continue
 		}
-		var prevCommit, newCommit string
+		var prevCommit, newCommit []byte
 		if split[2] == "Commitment" {
-			prevCommit, _ = strconv.Unquote(split[4])
-			newCommit, _ = strconv.Unquote(split[6])
+			unq, _ := strconv.Unquote(split[4])
+			prevCommit = []byte(unq)
+			unq, _ = strconv.Unquote(split[6])
+			newCommit = []byte(unq)
 		} else if split[2] == "InitialCommitment" {
-			prevCommit = ""
-			newCommit, _ = strconv.Unquote(split[4])
+			unq, _ := strconv.Unquote(split[4])
+			newCommit = []byte(unq)
 		}
 		commitments[i] = generated.ContractCommitment{
 			Contract:           strings.TrimLeft(split[0], "."),

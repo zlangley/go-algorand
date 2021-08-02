@@ -287,8 +287,8 @@ type ContractCommand struct {
 // ContractCommitment defines model for ContractCommitment.
 type ContractCommitment struct {
 	Contract           string `json:"contract"`
-	NewCommitment      string `json:"new_commitment"`
-	PreviousCommitment string `json:"previous_commitment"`
+	NewCommitment      []byte `json:"new_commitment"`
+	PreviousCommitment []byte `json:"previous_commitment"`
 }
 
 // ContractInit defines model for ContractInit.
@@ -673,24 +673,12 @@ type SpeculationResponse struct {
 	Checkpoints *[]uint64            `json:"checkpoints,omitempty"`
 	Commitments []ContractCommitment `json:"commitments"`
 
-	// The elapsed time in milliseconds spent doing DB work to handle the request
-	DbTime uint64 `json:"db_time"`
-
-	// The elapsed time in milliseconds spent in kalgo to handle the request
-	KalgoTime uint64 `json:"kalgo_time"`
-
 	// The total elapsed time in milliseconds to handle the request
-	NodeTime uint64 `json:"node_time"`
+	Timing map[string]interface{} `json:"timing"`
 
 	// The persistent token by which the speculation can be referenced
-	Token string `json:"token"`
-
-	// The total elapsed time in milliseconds to handle the request
-	TotalTime uint64                     `json:"total_time"`
-	Txns      [][]map[string]interface{} `json:"txns"`
-
-	// The elapsed time in milliseconds spent in kalgo to handle the request
-	VrfTime uint64 `json:"vrf_time"`
+	Token string                     `json:"token"`
+	Txns  [][]map[string]interface{} `json:"txns"`
 }
 
 // SupplyResponse defines model for SupplyResponse.

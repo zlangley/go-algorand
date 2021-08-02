@@ -19,7 +19,6 @@ package data
 import (
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data/basics"
-	"github.com/algorand/go-algorand/data/bookkeeping"
 	"github.com/algorand/go-algorand/data/transactions"
 	"github.com/algorand/go-algorand/ledger"
 	"github.com/algorand/go-algorand/protocol"
@@ -32,8 +31,7 @@ import (
 type SpeculationLedger struct {
 	baseLedger  *Ledger
 	baseRound   basics.Round
-	txnStack    [][]transactions.SignedTxn
-	txnBatch    [][]transactions.SignedTxn
+	stack       [][]transactions.SignedTxn
 	Checkpoints []uint64
 
 	Evaluator *ledger.BlockEvaluator
@@ -46,7 +44,7 @@ func NewSpeculationLedger(l *Ledger, rnd basics.Round) (*SpeculationLedger, erro
 	return sl, err
 }
 
-// Note that start() does not manipulate txnStack or checkpoints, so
+// Note that start() does not manipulate stack or checkpoints, so
 // it can be used at construction time and during rollback.
 func (sl *SpeculationLedger) start() error {
 	hdr, err := sl.baseLedger.BlockHdr(sl.baseRound)
@@ -57,14 +55,6 @@ func (sl *SpeculationLedger) start() error {
 	if err != nil {
 		return err
 	}
-
-	// Re-apply the batch assembled so far.
-	for _, txgroup := range sl.txnBatch {
-		err = evaluator.TransactionGroup(txgroup)
-		if err != nil {
-			return err
-		}
-	}
 	sl.Evaluator = evaluator
 	sl.Version = hdr.CurrentProtocol
 	return nil
@@ -73,30 +63,35 @@ func (sl *SpeculationLedger) start() error {
 func (sl *SpeculationLedger) GetCreator(cidx basics.CreatableIndex, ctype basics.CreatableType) (basics.Address, bool, error) {
 	return sl.Evaluator.State().GetCreator(cidx, ctype)
 }
+
 func (sl *SpeculationLedger) Latest() basics.Round {
 	return sl.baseRound // or +1 per group? The speculative txns are certainly not in the ledger's round.
 }
+
 func (sl *SpeculationLedger) LookupLatest(addr basics.Address) (basics.AccountData, error) {
 	return sl.Evaluator.State().Get(addr, true)
 }
+
 func (sl *SpeculationLedger) LookupLatestWithoutRewards(addr basics.Address) (basics.AccountData, basics.Round, error) {
 	acct, err := sl.Evaluator.State().Get(addr, false)
 	// Need to understand what the "validThrough" round returned here should mean
 	return acct, basics.Round(0), err
 }
+
 func (sl *SpeculationLedger) Apply(txgroup []transactions.SignedTxn) error {
 	err := sl.Evaluator.TransactionGroup(txgroup)
 	if err != nil {
 		return err
 	}
-	sl.txnStack = append(sl.txnStack, txgroup)
+	sl.stack = append(sl.stack, txgroup)
 	return nil
 }
 
 func (sl *SpeculationLedger) Checkpoint() error {
-	sl.Checkpoints = append(sl.Checkpoints, uint64(len(sl.txnStack)))
+	sl.Checkpoints = append(sl.Checkpoints, uint64(len(sl.stack)))
 	return nil
 }
+
 func (sl *SpeculationLedger) Rollback() error {
 	// Start the evaluator over again from the beginning
 	err := sl.start()
@@ -106,10 +101,10 @@ func (sl *SpeculationLedger) Rollback() error {
 
 	// Replay the txns up until the last checkpoint
 	last := len(sl.Checkpoints) - 1
-	replays := sl.txnStack[:sl.Checkpoints[last]]
-	sl.txnStack = nil
+	replays := sl.stack[:sl.Checkpoints[last]]
+	sl.stack = nil
 	for _, txgroup := range replays {
-		err := sl.Apply(txgroup)
+		err = sl.Apply(txgroup)
 		if err != nil {
 			return err
 		}
@@ -126,26 +121,8 @@ func (sl *SpeculationLedger) Commit() error {
 	return nil
 }
 
-func (sl *SpeculationLedger) CommitStack() error {
-	if sl.txnStack == nil {
-		return nil
-	}
-	var group transactions.TxGroup
-	stxns := bookkeeping.SignedTxnGroupsFlatten(sl.txnStack)
-	for _, stxn := range stxns {
-		group.TxGroupHashes = append(group.TxGroupHashes, crypto.HashObj(stxn.Txn))
-	}
-	groupHash := crypto.HashObj(group)
-	for i := range stxns {
-		stxns[i].Txn.Group = groupHash
-	}
-	sl.txnBatch = append(sl.txnBatch, stxns)
-	sl.txnStack = nil
-	return sl.start()
-}
-
-func (sl *SpeculationLedger) TransactionBatch() [][]transactions.SignedTxn {
-	return sl.txnBatch
+func (sl *SpeculationLedger) TxStack() [][]transactions.SignedTxn {
+	return sl.stack
 }
 
 func (sl *SpeculationLedger) GenesisHash() crypto.Digest {

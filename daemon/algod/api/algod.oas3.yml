@@ -639,25 +639,14 @@
                   },
                   "type": "array"
                 },
-                "db_time": {
-                  "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
-                  "type": "integer"
-                },
-                "kalgo_time": {
-                  "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                  "type": "integer"
-                },
-                "node_time": {
+                "timing": {
                   "description": "The total elapsed time in milliseconds to handle the request",
-                  "type": "integer"
+                  "properties": {},
+                  "type": "object"
                 },
                 "token": {
                   "description": "The persistent token by which the speculation can be referenced",
                   "type": "string"
-                },
-                "total_time": {
-                  "description": "The total elapsed time in milliseconds to handle the request",
-                  "type": "integer"
                 },
                 "txns": {
                   "items": {
@@ -669,23 +658,15 @@
                     "type": "array"
                   },
                   "type": "array"
-                },
-                "vrf_time": {
-                  "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                  "type": "integer"
                 }
               },
               "required": [
                 "address",
                 "base",
                 "commitments",
-                "db_time",
-                "kalgo_time",
-                "node_time",
+                "timing",
                 "token",
-                "total_time",
-                "txns",
-                "vrf_time"
+                "txns"
               ],
               "type": "object"
             }
@@ -1257,9 +1238,13 @@
             "type": "string"
           },
           "new_commitment": {
+            "format": "byte",
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
             "type": "string"
           },
           "previous_commitment": {
+            "format": "byte",
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
             "type": "string"
           }
         },
@@ -2320,25 +2305,14 @@
                       },
                       "type": "array"
                     },
-                    "db_time": {
-                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                      "type": "integer"
-                    },
-                    "node_time": {
+                    "timing": {
                       "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
+                      "properties": {},
+                      "type": "object"
                     },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
-                    },
-                    "total_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
                     },
                     "txns": {
                       "items": {
@@ -2350,23 +2324,15 @@
                         "type": "array"
                       },
                       "type": "array"
-                    },
-                    "vrf_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                      "type": "integer"
                     }
                   },
                   "required": [
                     "address",
                     "base",
                     "commitments",
-                    "db_time",
-                    "kalgo_time",
-                    "node_time",
+                    "timing",
                     "token",
-                    "total_time",
-                    "txns",
-                    "vrf_time"
+                    "txns"
                   ],
                   "type": "object"
                 }
@@ -2772,25 +2738,14 @@
                       },
                       "type": "array"
                     },
-                    "db_time": {
-                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                      "type": "integer"
-                    },
-                    "node_time": {
+                    "timing": {
                       "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
+                      "properties": {},
+                      "type": "object"
                     },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
-                    },
-                    "total_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
                     },
                     "txns": {
                       "items": {
@@ -2802,23 +2757,15 @@
                         "type": "array"
                       },
                       "type": "array"
-                    },
-                    "vrf_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                      "type": "integer"
                     }
                   },
                   "required": [
                     "address",
                     "base",
                     "commitments",
-                    "db_time",
-                    "kalgo_time",
-                    "node_time",
+                    "timing",
                     "token",
-                    "total_time",
-                    "txns",
-                    "vrf_time"
+                    "txns"
                   ],
                   "type": "object"
                 }
@@ -3071,25 +3018,14 @@
                       },
                       "type": "array"
                     },
-                    "db_time": {
-                      "description": "The elapsed time in milliseconds spent doing DB work to handle the request",
-                      "type": "integer"
-                    },
-                    "kalgo_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                      "type": "integer"
-                    },
-                    "node_time": {
+                    "timing": {
                       "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
+                      "properties": {},
+                      "type": "object"
                     },
                     "token": {
                       "description": "The persistent token by which the speculation can be referenced",
                       "type": "string"
-                    },
-                    "total_time": {
-                      "description": "The total elapsed time in milliseconds to handle the request",
-                      "type": "integer"
                     },
                     "txns": {
                       "items": {
@@ -3101,23 +3037,15 @@
                         "type": "array"
                       },
                       "type": "array"
-                    },
-                    "vrf_time": {
-                      "description": "The elapsed time in milliseconds spent in kalgo to handle the request",
-                      "type": "integer"
                     }
                   },
                   "required": [
                     "address",
                     "base",
                     "commitments",
-                    "db_time",
-                    "kalgo_time",
-                    "node_time",
+                    "timing",
                     "token",
-                    "total_time",
-                    "txns",
-                    "vrf_time"
+                    "txns"
                   ],
                   "type": "object"
                 }

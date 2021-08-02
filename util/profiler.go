@@ -6,15 +6,15 @@ import (
 )
 
 type Profiler struct {
-	curr    string
+	curr     string
 	initTime time.Time
-	watches map[string]*Stopwatch
-	mu sync.Mutex
+	watches  map[string]*Stopwatch
+	mu       sync.Mutex
 }
 
 func NewProfiler() *Profiler {
 	return &Profiler{
-		curr: "default",
+		curr:     "default",
 		initTime: time.Now(),
 		watches: map[string]*Stopwatch{
 			"default": &Stopwatch{},

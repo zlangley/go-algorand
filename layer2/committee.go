@@ -7,7 +7,6 @@ import (
 	"github.com/algorand/go-algorand/data/committee"
 	"github.com/algorand/go-algorand/data/committee/sortition"
 	"github.com/algorand/go-algorand/protocol"
-	"math/rand"
 )
 
 type (
@@ -18,7 +17,7 @@ type (
 	step uint64
 )
 
-type selector struct {
+type Selector struct {
 	_struct struct{} `codec:""` // not omitempty
 
 	Seed   committee.Seed `codec:"seed"`
@@ -26,35 +25,27 @@ type selector struct {
 	Period period         `codec:"per"`
 }
 
-func (sel selector) ToBeHashed() (protocol.HashID, []byte) {
+func (sel Selector) ToBeHashed() (protocol.HashID, []byte) {
 	return protocol.ExecutionSelector, protocol.EncodeReflect(&sel)
 }
 
-func (sel selector) CommitteeSize(proto config.ConsensusParams) uint64 {
+func (sel Selector) CommitteeSize(proto config.ConsensusParams) uint64 {
 	return 140
 }
 
-func ComputeWeight() (uint64, error) {
+func ComputeWeight(cred committee.UnauthenticatedCredential, vrfPub crypto.VrfPubkey, verifier crypto.SignatureVerifier) (uint64, error) {
 	var voterMoney uint64 = 200
 	var totalMoney uint64 = 10000000
 
 	proto := config.Consensus[protocol.ConsensusCurrentVersion]
 
-	gen := rand.New(rand.NewSource(2))
-	var seed crypto.Seed
-	gen.Read(seed[:])
-	s := crypto.GenerateSignatureSecrets(seed)
-	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
-
-	sel := selector{
+	sel := Selector{
 		Round: 1,
 	}
 	// This should happen once per round.
-	cred := committee.MakeCredential(&vrfSec, sel)
-
 	_, vrfOut := vrfPub.Verify(cred.Proof, sel)
 
-	h := crypto.Hash(append(vrfOut[:], s.SignatureVerifier[:]...))
+	h := crypto.Hash(append(vrfOut[:], verifier[:]...))
 	weight := sortition.Select(voterMoney, totalMoney, float64(sel.CommitteeSize(proto)), h)
 	return weight, nil
 }

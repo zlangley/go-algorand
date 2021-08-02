@@ -17,7 +17,7 @@ import (
 )
 
 
-func TestSquashSpeculativeTransactions(t *testing.T) {
+func TestSpeculationLedger(t *testing.T) {
 	genesisInitState, keys := testGenerateInitState(t, protocol.ConsensusCurrentVersion)
 	genesisHash := genesisInitState.Block.GenesisHash()
 
@@ -37,28 +37,21 @@ func TestSquashSpeculativeTransactions(t *testing.T) {
 	require.NoError(t, err)
 
 	sl.Checkpoint()
+	require.Equal(t, 1, len(sl.Checkpoints))
 	require.NoError(t, sl.Apply(makeSignedTxn(1, genesisHash, src, dst, srcKey)))
 	require.NoError(t, sl.Apply(makeSignedTxn(2, genesisHash, src, dst, srcKey)))
 	require.NoError(t, sl.Apply(makeSignedTxn(3, genesisHash, src, dst, srcKey)))
-	require.Equal(t, 3, len(sl.txnStack))
+	require.Equal(t, 3, len(sl.stack))
 	sl.Commit()
 	srcData2, err := sl.LookupLatest(src)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(sl.Checkpoints))
 	require.Equal(t, srcData.MicroAlgos.Raw - 30000 - 3, srcData2.MicroAlgos.Raw)
-	require.NoError(t, sl.CommitStack())
-	require.NoError(t, err)
-	require.Equal(t, 1, len(sl.txnBatch))
-	require.Equal(t, 0, len(sl.txnStack))
 
 	sl.Checkpoint()
 	require.NoError(t, sl.Apply(makeSignedTxn(4, genesisHash, src, dst, srcKey)))
 	require.NoError(t, sl.Apply(makeSignedTxn(5, genesisHash, src, dst, srcKey)))
 	sl.Commit()
-	require.Equal(t, 2, len(sl.txnStack))
-	require.NoError(t, sl.CommitStack())
-	require.NoError(t, err)
-	require.Equal(t, 2, len(sl.txnBatch))
-	require.Equal(t, 0, len(sl.txnStack))
 }
 
 

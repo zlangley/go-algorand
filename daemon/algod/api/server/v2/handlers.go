@@ -22,9 +22,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/algorand/go-algorand/data/committee"
 	"github.com/algorand/go-algorand/layer2"
 	"io"
 	"math"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -268,6 +270,7 @@ var (
 	kKalgoTotal  = "kalgo"
 	kCopyOnWrite = "cow"
 	kVRF         = "vrf"
+	kKeygen      = "keygen"
 )
 
 type cmdDiscriminator struct {
@@ -337,7 +340,6 @@ func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
 func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
 	prof = util.NewProfiler()
 	prof.Start(kNode)
-	defer prof.Stop()
 
 	if params.Speculation == nil {
 		err := errors.New("speculation token required (for now)")
@@ -362,13 +364,25 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	}
 
 	// Parsing done---start Layer 2 work.
+
+	// Step 1: Are we chosen?
+	prof.Start(kKeygen)
+	sel := layer2.Selector{Round: 1}
+	gen := rand.New(rand.NewSource(2))
+	var seed crypto.Seed
+	gen.Read(seed[:])
+	s := crypto.GenerateSignatureSecrets(seed)
+	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
+	cred := committee.MakeCredential(&vrfSec, sel)
+
 	prof.Start(kVRF)
-	_, err = layer2.ComputeWeight()
+	_, err = layer2.ComputeWeight(cred, vrfPub, s.SignatureVerifier)
 	if err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 
 	prof.Start(kNode)
+	// Step 2: Run the VM.
 	kenv := kalgoEnv(ctx.Request(), speculation)
 	ex := layer2.NewExecutor(ledger, kenv)
 
@@ -378,26 +392,31 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		}
 	}
 
+	// TODO: Step 3: Make fully authorized effects txns.
+
+	elapsedTotal := prof.ElapsedTotal()
+	prof.Stop()
+
 	response := struct {
-		Base        uint64                     `codec:"base"`
-		Checkpoints *[]uint64                  `codec:"checkpoints,omitempty"`
-		Token       string                     `codec:"token"`
-		Txns        [][]transactions.SignedTxn `codec:"txns"`
-		TotalTime   uint64                     `codec:"total_time"`
-		NodeTime    uint64                     `codec:"node_time"`
-		VrfTime     uint64                     `codec:"vrf_time"`
-		KalgoTime   uint64                     `codec:"kalgo_time"`
-		DbTime      uint64                     `codec:"db_time"`
+		Base        uint64                       `codec:"base"`
+		Checkpoints *[]uint64                    `codec:"checkpoints,omitempty"`
+		Token       string                       `codec:"token"`
+		Txns        [][]transactions.Transaction `codec:"txns"`
+		Timing      map[string]uint64            `codec:"timing"`
 	}{
 		Base:        uint64(ledger.Latest()),
 		Checkpoints: &ledger.Checkpoints,
 		Token:       speculation,
-		Txns:        ledger.TransactionBatch(),
-		TotalTime:   prof.ElapsedTotal(),
-		NodeTime:    prof.Elapsed(kNode),
-		VrfTime:     prof.Elapsed(kVRF),
-		KalgoTime:   prof.Elapsed(kKalgoTotal),
-		DbTime:      prof.Elapsed(kCopyOnWrite),
+		Txns:        ex.EffectsTxns(),
+		Timing: map[string]uint64{
+			"total":   elapsedTotal,
+			"node":    prof.Elapsed(kNode),
+			"keygen":  prof.Elapsed(kKeygen),
+			"vrf":     prof.Elapsed(kVRF),
+			"kalgo":   prof.Elapsed(kKalgoTotal),
+			"effects": prof.Elapsed("effects"),
+			"db":      prof.Elapsed(kCopyOnWrite),
+		},
 	}
 	data, err = encode(protocol.JSONHandle, response)
 	if err != nil {
