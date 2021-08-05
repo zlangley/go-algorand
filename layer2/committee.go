@@ -1,6 +1,7 @@
 package layer2
 
 import (
+	"fmt"
 	"github.com/algorand/go-algorand/config"
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data/basics"
@@ -44,7 +45,11 @@ func (sel Selector) ComputeWeightOnCommittee(cred committee.UnauthenticatedCrede
 	proto := config.Consensus[protocol.ConsensusCurrentVersion]
 
 	// This should happen once per round.
-	_, vrfOut := vrfPub.Verify(cred.Proof, sel)
+	ok, vrfOut := vrfPub.Verify(cred.Proof, sel)
+	if !ok {
+		err := fmt.Errorf("UnauthenticatedCredential.Verify: could not verify VRF Proof with %v (parameters = %+v, proof = %#v)", vrfPub, sel, cred.Proof)
+		return 0, err
+	}
 
 	h := crypto.Hash(append(vrfOut[:], verifier[:]...))
 	weight := sortition.Select(voterMoney, totalMoney, float64(sel.CommitteeSize(proto)), h)
