@@ -6,6 +6,7 @@ import (
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data"
 	"github.com/algorand/go-algorand/data/basics"
+	"github.com/algorand/go-algorand/data/bookkeeping"
 	"github.com/algorand/go-algorand/data/transactions"
 	"github.com/algorand/go-algorand/layer2/kalgo"
 	"github.com/algorand/go-algorand/protocol"
@@ -14,27 +15,27 @@ import (
 	"strconv"
 )
 
-type batchItemKind int8
+type invocationKind int8
 
 const (
-	Init batchItemKind = iota
+	Init invocationKind = iota
 	Call
 )
 
-type BatchItem struct {
-	kind       batchItemKind
+type Invocation struct {
+	kind       invocationKind
 	name       string
 	runner     kalgo.Runner
 	contractID crypto.Digest
 	sender     basics.Address
 }
 
-func NewInitBatchItem(name, source string, sender basics.Address) *BatchItem {
+func NewInitInvocation(name, source string, sender basics.Address) *Invocation {
 	sourceHash := crypto.Hash([]byte(source))
 	contractID := crypto.Hash([]byte(sender.GetUserAddress() + sourceHash.String()))
 	addr, _, _ := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractID)
 
-	return &BatchItem{
+	return &Invocation{
 		kind: Init,
 		name: name,
 		runner: &kalgo.InitCmd{
@@ -50,8 +51,8 @@ func NewInitBatchItem(name, source string, sender basics.Address) *BatchItem {
 	}
 }
 
-func NewCallBatchItem(name, function, args string, addr, sender basics.Address) *BatchItem {
-	return &BatchItem{
+func NewCallInvocation(name, function, args string, addr, sender basics.Address) *Invocation {
+	return &Invocation{
 		kind: Call,
 		name: name,
 		runner: &kalgo.CallCmd{
@@ -72,6 +73,8 @@ type executionResult struct {
 	kalgoOutput *kalgo.Output
 }
 
+// An Executor executes Layer 2 invocations, managing the required speculative state
+// and ultimately producing the Layer 1 Effects Transactions.
 type Executor struct {
 	ledger *data.SpeculationLedger
 	kenv   kalgo.Env
@@ -91,11 +94,11 @@ func NewExecutor(ledger *data.SpeculationLedger, kenv kalgo.Env) *Executor {
 	}
 }
 
-// Execute executes the given BatchItem and commits to the speculative ledger.
+// Submit executes the given Invocation and commits to the speculative ledger.
 //
 // If successful, the effects transactions from the execution are applied to
-// the speculative ledger.
-func (ex *Executor) Execute(item *BatchItem, prof *util.Profiler) error {
+// the speculative ledger, the speculative database is updated.
+func (ex *Executor) Submit(item *Invocation, prof *util.Profiler) error {
 	prof.Start("kalgo")
 	rawout, err := item.runner.Run(ex.kenv)
 	if err != nil {
@@ -129,19 +132,13 @@ func (ex *Executor) Execute(item *BatchItem, prof *util.Profiler) error {
 		if err != nil {
 			return fmt.Errorf("could not create commitment swap contract call: %v", err)
 		}
-		err = ex.ledger.Apply([]transactions.SignedTxn{{Txn: txn}})
+		err = ex.ledger.Apply([]transactions.Transaction{txn})
 		if err != nil {
 			return fmt.Errorf("could not apply version swap call (%v -> %v): %v", commit.PreviousCommitment, commit.NewCommitment, err)
 		}
 	}
 
-	stxnGroups := ex.ledger.TxStack()[ex.lastLedgerIdx:]
-	var effects []transactions.Transaction
-	for _, stxnGroup := range stxnGroups {
-		for _, stx := range stxnGroup {
-			effects = append(effects, stx.Txn)
-		}
-	}
+	effects := bookkeeping.TxnGroupsFlatten(ex.ledger.TxStack()[ex.lastLedgerIdx:])
 	result := &executionResult{
 		effectsTxns: effects,
 		kalgoOutput: out,
@@ -151,7 +148,7 @@ func (ex *Executor) Execute(item *BatchItem, prof *util.Profiler) error {
 
 	prof.Start("cow")
 	for _, commit := range out.Commitments {
-		if err = ex.copyContract(commit.Contract); err != nil {
+		if err = ex.persistWriteSet(commit.Contract); err != nil {
 			return err
 		}
 	}
@@ -159,12 +156,13 @@ func (ex *Executor) Execute(item *BatchItem, prof *util.Profiler) error {
 	return nil
 }
 
-func (ex *Executor) copyContract(contract string) error {
-	src := path.Join(ex.kenv.SourcePrefix, contract)
-	dst := path.Join(ex.kenv.SourcePrefix, "..", strconv.Itoa(len(ex.results)), contract)
+func (ex *Executor) persistWriteSet(contractName string) error {
+	src := path.Join(ex.kenv.SourcePrefix, contractName)
+	dst := path.Join(ex.kenv.SourcePrefix, "..", strconv.Itoa(len(ex.results)), contractName)
 	return util.CopyFolder(src, dst)
 }
 
+// EffectsTxns returns the (unsigned) Effects Transactions produced so far.
 func (ex *Executor) EffectsTxns() [][]transactions.Transaction {
 	var txns [][]transactions.Transaction
 	for _, res := range ex.results {
@@ -173,21 +171,11 @@ func (ex *Executor) EffectsTxns() [][]transactions.Transaction {
 	return txns
 }
 
-// associated with every l2 contract, we have:
-//   - contract ID
-//   - escrow account (logicsig)
-
-//var CommitmentMapAddress = "Z72YSHBKWQMW66SGB6WHH6VOK46KDSTJZ2NZJPRXQG4RK6U2Y62ZNR6FJY"
-
 func CommitmentAppOptInTxn(contractID crypto.Digest, commitment []byte, fv, lv basics.Round, genesisHash crypto.Digest) (transactions.Transaction, error) {
-	addr, _, err := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractID)
-	if err != nil {
-		return transactions.Transaction{}, err
-	}
 	return transactions.Transaction{
 		Type: protocol.ApplicationCallTx,
 		Header: transactions.Header{
-			Sender:      addr,
+			Sender:      ContractAddress(contractID),
 			Fee:         basics.MicroAlgos{Raw: 1000},
 			FirstValid:  fv,
 			LastValid:   lv,
@@ -202,10 +190,7 @@ func CommitmentAppOptInTxn(contractID crypto.Digest, commitment []byte, fv, lv b
 }
 
 func CommitmentAppCallTxn(contractID crypto.Digest, prev, new []byte, fv, lv basics.Round, genesisHash crypto.Digest) (transactions.Transaction, error) {
-	addr, _, err := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractID)
-	if err != nil {
-		return transactions.Transaction{}, err
-	}
+	addr := ContractAddress(contractID)
 	return transactions.Transaction{
 		Type: protocol.ApplicationCallTx,
 		Header: transactions.Header{

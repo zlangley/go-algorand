@@ -31,7 +31,7 @@ import (
 type SpeculationLedger struct {
 	baseLedger  *Ledger
 	baseRound   basics.Round
-	stack       [][]transactions.SignedTxn
+	stack       [][]transactions.Transaction
 	Checkpoints []uint64
 
 	Evaluator *ledger.BlockEvaluator
@@ -78,13 +78,25 @@ func (sl *SpeculationLedger) LookupLatestWithoutRewards(addr basics.Address) (ba
 	return acct, basics.Round(0), err
 }
 
-func (sl *SpeculationLedger) Apply(txgroup []transactions.SignedTxn) error {
-	err := sl.Evaluator.TransactionGroup(txgroup)
+func (sl *SpeculationLedger) Apply(txgroup []transactions.Transaction) error {
+	var stxgroup []transactions.SignedTxn
+	for _, txn := range txgroup {
+		stxgroup = append(stxgroup, transactions.SignedTxn{Txn: txn})
+	}
+	err := sl.Evaluator.TransactionGroup(stxgroup)
 	if err != nil {
 		return err
 	}
 	sl.stack = append(sl.stack, txgroup)
 	return nil
+}
+
+func (sl *SpeculationLedger) ApplyIgnoringSignatures(stxgroup []transactions.SignedTxn) error {
+	var txgroup []transactions.Transaction
+	for _, txn := range stxgroup {
+		txgroup = append(txgroup, txn.Txn)
+	}
+	return sl.Apply(txgroup)
 }
 
 func (sl *SpeculationLedger) Checkpoint() error {
@@ -121,7 +133,7 @@ func (sl *SpeculationLedger) Commit() error {
 	return nil
 }
 
-func (sl *SpeculationLedger) TxStack() [][]transactions.SignedTxn {
+func (sl *SpeculationLedger) TxStack() [][]transactions.Transaction {
 	return sl.stack
 }
 

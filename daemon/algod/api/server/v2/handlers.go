@@ -239,7 +239,7 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 	}
 
 	prof.Start(kCopyOnWrite)
-	current := filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), "current")
+	current := filepath.Join(os.Getenv("KALGO_PREFIX"), "current")
 	if _, err = os.Stat(current); os.IsNotExist(err) {
 		err = os.MkdirAll(current, 0777)
 		if err != nil {
@@ -261,7 +261,7 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 		AlgodAddress:     req.Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
 		AlgodToken:       req.Header.Get("X-Algo-API-Token"),
 		SpeculationToken: speculation,
-		SourcePrefix:     filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation, "current"),
+		SourcePrefix:     filepath.Join(os.Getenv("KALGO_PREFIX"), speculation, "current"),
 	}
 }
 
@@ -284,7 +284,7 @@ func parseOptionalAddress(s *string) (addr basics.Address, err error) {
 	return
 }
 
-func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
+func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 	// FIXME[zach]: I haven't been able to get go-swagger to generate the right interface for a
 	// heterogeneous list (perhaps we are using an old version?). The parsing here is kind of gnarly,
 	// but is intended to somewhat mirror what go-swagger supposedly expects. We decode the data twice.
@@ -300,7 +300,7 @@ func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
 	if err := decode(protocol.JSONHandle, data, &rawCmds); err != nil {
 		return nil, err
 	}
-	items := make([]*layer2.BatchItem, len(rawCmds))
+	items := make([]*layer2.Invocation, len(rawCmds))
 	for i, discrim := range discrims {
 		switch discrim.Command {
 		case "init":
@@ -308,12 +308,11 @@ func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
 			if err := decode(protocol.JSONHandle, rawCmds[i], &init); err != nil {
 				return nil, err
 			}
-
 			sender, err := parseOptionalAddress(init.Sender)
 			if err != nil {
 				return nil, err
 			}
-			items[i] = layer2.NewInitBatchItem(init.Id, init.Source, sender)
+			items[i] = layer2.NewInitInvocation(init.Id, init.Source, sender)
 		case "call":
 			var call generated.ContractCall
 			if err := decode(protocol.JSONHandle, rawCmds[i], &call); err != nil {
@@ -327,7 +326,7 @@ func decodeBatch(data []byte) ([]*layer2.BatchItem, error) {
 			if err != nil {
 				return nil, err
 			}
-			items[i] = layer2.NewCallBatchItem(call.Id, call.Function, call.Args, addr, sender)
+			items[i] = layer2.NewCallInvocation(call.Id, call.Function, call.Args, addr, sender)
 		default:
 			return nil, errors.New(fmt.Sprintf("item in batch missing command descriminator (index %d)", i))
 		}
@@ -365,29 +364,30 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 
 	// Parsing done---start Layer 2 work.
 
-	// Step 1: Are we chosen?
-	prof.Start(kKeygen)
-	sel := layer2.Selector{Round: 1}
 	gen := rand.New(rand.NewSource(2))
 	var seed crypto.Seed
 	gen.Read(seed[:])
 	s := crypto.GenerateSignatureSecrets(seed)
 	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
+
+	// Step 1: Are we chosen?
+	prof.Start(kKeygen)
+	sel := layer2.CurrentSelector()
 	cred := committee.MakeCredential(&vrfSec, sel)
 
 	prof.Start(kVRF)
-	_, err = layer2.ComputeWeight(cred, vrfPub, s.SignatureVerifier)
+	_, err = sel.ComputeWeightOnCommittee(cred, vrfPub, s.SignatureVerifier)
 	if err != nil {
 		return internalError(ctx, err, err.Error(), v2.Log)
 	}
 
-	prof.Start(kNode)
 	// Step 2: Run the VM.
+	prof.Start(kNode)
 	kenv := kalgoEnv(ctx.Request(), speculation)
 	ex := layer2.NewExecutor(ledger, kenv)
 
 	for _, item := range batch {
-		if err := ex.Execute(item, prof); err != nil {
+		if err := ex.Submit(item, prof); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 	}
@@ -432,7 +432,7 @@ func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, o
 	defer prof.Start(kKalgoTotal)
 	if operation == "delete" {
 		v2.Node.DestroySpeculationLedger(speculation)
-		os.RemoveAll(filepath.Join(os.Getenv("ALGO_CLARITY_PREFIX"), speculation))
+		os.RemoveAll(filepath.Join(os.Getenv("KALGO_PREFIX"), speculation))
 		// XXX: return something more reasonable
 		return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 			Base:  0,
@@ -682,7 +682,7 @@ func (v2 *Handlers) RawTransaction(ctx echo.Context, params generated.RawTransac
 		if err != nil {
 			return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
 		}
-		err = ledger.Apply(txgroup)
+		err = ledger.ApplyIgnoringSignatures(txgroup)
 		if err != nil {
 			return badRequest(ctx, err, fmt.Sprintf("%v", err), v2.Log)
 		}

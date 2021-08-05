@@ -100,7 +100,7 @@ type Output struct {
 
 func command(env Env, subcmd string, args ...string) ([]byte, error) {
 	cmd := exec.Command("./kalgo", append([]string{subcmd}, args...)...)
-	cmd.Dir = os.Getenv("KALGO_PREFIX")
+	cmd.Dir = os.Getenv("KALGO_HOME")
 	cmd.Env = append(os.Environ(),
 		"ALGOD_ADDRESS="+env.AlgodAddress,
 		"ALGOD_TOKEN="+env.AlgodToken,

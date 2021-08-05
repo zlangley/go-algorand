@@ -33,15 +33,16 @@ func (sel Selector) CommitteeSize(proto config.ConsensusParams) uint64 {
 	return 140
 }
 
-func ComputeWeight(cred committee.UnauthenticatedCredential, vrfPub crypto.VrfPubkey, verifier crypto.SignatureVerifier) (uint64, error) {
+func CurrentSelector() Selector {
+	return Selector{Round: 1}
+}
+
+func (sel Selector) ComputeWeightOnCommittee(cred committee.UnauthenticatedCredential, vrfPub crypto.VrfPubkey, verifier crypto.SignatureVerifier) (uint64, error) {
 	var voterMoney uint64 = 200
 	var totalMoney uint64 = 10000000
 
 	proto := config.Consensus[protocol.ConsensusCurrentVersion]
 
-	sel := Selector{
-		Round: 1,
-	}
 	// This should happen once per round.
 	_, vrfOut := vrfPub.Verify(cred.Proof, sel)
 

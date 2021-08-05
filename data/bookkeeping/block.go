@@ -644,6 +644,14 @@ func SignedTxnsToGroups(txns []transactions.SignedTxn) (res [][]transactions.Sig
 	return res
 }
 
+// TxnGroupsFlatten combines all groups into a flat slice of SignedTxns.
+func TxnGroupsFlatten(txgroups [][]transactions.Transaction) (res []transactions.Transaction) {
+	for _, txgroup := range txgroups {
+		res = append(res, txgroup...)
+	}
+	return res
+}
+
 // SignedTxnGroupsFlatten combines all groups into a flat slice of SignedTxns.
 func SignedTxnGroupsFlatten(txgroups [][]transactions.SignedTxn) (res []transactions.SignedTxn) {
 	for _, txgroup := range txgroups {
