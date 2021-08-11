@@ -312,7 +312,17 @@ func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 			if err != nil {
 				return nil, err
 			}
-			items[i] = layer2.NewInitInvocation(init.Id, init.Source, sender)
+			var contractAddr basics.Address
+			if init.Address != nil {
+				contractAddr, err = basics.UnmarshalChecksumAddress(*init.Address)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				contractPreID := layer2.GetContractPreID(sender, init.Source)
+				contractAddr = layer2.GetContractAddress(contractPreID)
+			}
+			items[i] = layer2.NewInitInvocation(init.Id, init.Source, contractAddr, sender)
 		case "call":
 			var call generated.ContractCall
 			if err := decode(protocol.JSONHandle, rawCmds[i], &call); err != nil {

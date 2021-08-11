@@ -1,7 +1,7 @@
 package layer2
 
 import (
-	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data"
@@ -26,27 +26,28 @@ type Invocation struct {
 	kind       invocationKind
 	name       string
 	runner     kalgo.Runner
-	contractID crypto.Digest
+	contractID basics.Address
 	sender     basics.Address
 }
 
-func NewInitInvocation(name, source string, sender basics.Address) *Invocation {
+func GetContractPreID(sender basics.Address, source string) crypto.Digest {
 	sourceHash := crypto.Hash([]byte(source))
-	contractID := crypto.Hash([]byte(sender.GetUserAddress() + sourceHash.String()))
-	addr, _, _ := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractID)
+	return crypto.Hash([]byte(sender.GetUserAddress() + sourceHash.String()))
+}
 
+func NewInitInvocation(name, source string, contractAddr, sender basics.Address) *Invocation {
 	return &Invocation{
 		kind: Init,
 		name: name,
 		runner: &kalgo.InitCmd{
 			Cmd: kalgo.Cmd{
-				Address: addr,
+				Address: contractAddr,
 				Name:    name,
 				Sender:  sender,
 			},
 			Source: source,
 		},
-		contractID: contractID,
+		contractID: contractAddr,
 		sender:     sender,
 	}
 }
@@ -81,16 +82,12 @@ type Executor struct {
 
 	lastLedgerIdx int
 	results       []*executionResult
-
-	// TODO: kalgo should return contract ids eventually
-	contractIDs map[string]crypto.Digest
 }
 
 func NewExecutor(ledger *data.SpeculationLedger, kenv kalgo.Env) *Executor {
 	return &Executor{
 		ledger: ledger,
 		kenv:   kenv,
-		contractIDs: make(map[string]crypto.Digest),
 	}
 }
 
@@ -107,11 +104,6 @@ func (ex *Executor) Submit(item *Invocation, prof *util.Profiler) error {
 
 	prof.Start("node")
 
-	// Store the contract ID away in case we call this again later by name.
-	if item.kind == Init {
-		ex.contractIDs[item.name] = item.contractID
-	}
-
 	// TODO: Run() should probably just return a *kalgo.Output, but for now, running
 	// the VM and parsing its output are separate to contain the profiling logic.
 	out, err := kalgo.ParseOutput(rawout)
@@ -122,19 +114,22 @@ func (ex *Executor) Submit(item *Invocation, prof *util.Profiler) error {
 	prof.Start("effects")
 	// Add version updates.
 	for _, commit := range out.Commitments {
-		contractID := ex.contractIDs[commit.Contract]
+		// TODO: use acutal ContractID once we get it from kalgo output.
+		contractID := crypto.Hash([]byte(commit.Contract))
+		contractAddr := GetContractAddress(contractID)
+
 		var txn transactions.Transaction
-		if len(commit.PreviousCommitment) == 0 {
-			txn, err = CommitmentAppOptInTxn(contractID, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest() + 1000, ex.ledger.GenesisHash())
-		} else if bytes.Compare(commit.PreviousCommitment, commit.NewCommitment) == 0 {
-			txn, err = CommitmentAppCallTxn(contractID, commit.PreviousCommitment, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest()+1000, ex.ledger.GenesisHash())
+		if item.kind == Init {
+			txn, err = CommitmentAppOptInTxn(contractAddr, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest() + 1000, ex.ledger.GenesisHash())
+		} else {
+			txn, err = CommitmentAppCallTxn(contractAddr, commit.PreviousCommitment, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest()+1000, ex.ledger.GenesisHash())
 		}
 		if err != nil {
 			return fmt.Errorf("could not create commitment swap contract call: %v", err)
 		}
 		err = ex.ledger.Apply([]transactions.Transaction{txn})
 		if err != nil {
-			return fmt.Errorf("could not apply version swap call (%v -> %v): %v", commit.PreviousCommitment, commit.NewCommitment, err)
+			return fmt.Errorf("could not apply version swap call (%v -> %v) for contract %v: %v", base64.StdEncoding.EncodeToString(commit.PreviousCommitment), base64.StdEncoding.EncodeToString(commit.NewCommitment), commit.Contract, err)
 		}
 	}
 
@@ -171,11 +166,11 @@ func (ex *Executor) EffectsTxns() [][]transactions.Transaction {
 	return txns
 }
 
-func CommitmentAppOptInTxn(contractID crypto.Digest, commitment []byte, fv, lv basics.Round, genesisHash crypto.Digest) (transactions.Transaction, error) {
+func CommitmentAppOptInTxn(contractAddr basics.Address, commitment []byte, fv, lv basics.Round, genesisHash crypto.Digest) (transactions.Transaction, error) {
 	return transactions.Transaction{
 		Type: protocol.ApplicationCallTx,
 		Header: transactions.Header{
-			Sender:      ContractAddress(contractID),
+			Sender:      contractAddr,
 			Fee:         basics.MicroAlgos{Raw: 1000},
 			FirstValid:  fv,
 			LastValid:   lv,
@@ -189,12 +184,11 @@ func CommitmentAppOptInTxn(contractID crypto.Digest, commitment []byte, fv, lv b
 	}, nil
 }
 
-func CommitmentAppCallTxn(contractID crypto.Digest, prev, new []byte, fv, lv basics.Round, genesisHash crypto.Digest) (transactions.Transaction, error) {
-	addr := ContractAddress(contractID)
+func CommitmentAppCallTxn(contractAddr basics.Address, prev, new []byte, fv, lv basics.Round, genesisHash crypto.Digest) (transactions.Transaction, error) {
 	return transactions.Transaction{
 		Type: protocol.ApplicationCallTx,
 		Header: transactions.Header{
-			Sender:      addr,
+			Sender:      contractAddr,
 			Fee:         basics.MicroAlgos{Raw: 1000},
 			FirstValid:  fv,
 			LastValid:   lv,
@@ -203,7 +197,7 @@ func CommitmentAppCallTxn(contractID crypto.Digest, prev, new []byte, fv, lv bas
 		ApplicationCallTxnFields: transactions.ApplicationCallTxnFields{
 			ApplicationID:   VersionNumberAppIndex,
 			ApplicationArgs: [][]byte{prev, new},
-			Accounts:        []basics.Address{addr},
+			Accounts:        []basics.Address{contractAddr},
 		},
 	}, nil
 }

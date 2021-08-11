@@ -15,8 +15,8 @@ var (
 	VersionNumberAppIndex  basics.AppIndex = 21328402
 )
 
-func ContractAddress(contractID crypto.Digest) basics.Address {
-	addr, _, err := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractID)
+func GetContractAddress(contractPreID crypto.Digest) basics.Address {
+	addr, _, err := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractPreID)
 	if err != nil {
 		panic(err)
 	}
