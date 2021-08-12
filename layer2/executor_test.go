@@ -1,14 +1,21 @@
 package layer2
 
 import (
-	"github.com/algorand/go-algorand/data/basics"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/algorand/go-algorand/crypto"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTealTemplate(t *testing.T) {
-	contractID, err := basics.UnmarshalChecksumAddress("SYY6J5YNCZWLAV5MMKRTLSPEQHB576IQDEEC7AJBLJYDJAWIHHPVYFE7GM")
+	contractPreID := crypto.Hash([]byte("test1"))
+	addr1, prog1, err := logicSigFromTemplateFile("committee-defer-logicsig.teal.template", contractPreID)
 	require.NoError(t, err)
-	_, _, source := logicSigFromTemplateFile("committee-defer-logicsig.teal.template", contractID)
-	require.Contains(t, source, contractID.String())
+
+	contractPreID = crypto.Hash([]byte("test2"))
+	addr2, prog2, err := logicSigFromTemplateFile("committee-defer-logicsig.teal.template", contractPreID)
+	require.NoError(t, err)
+
+	require.NotEqual(t, addr1, addr2)
+	require.NotEqual(t, prog1, prog2)
 }

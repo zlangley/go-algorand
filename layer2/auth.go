@@ -16,20 +16,20 @@ var (
 )
 
 func GetContractAddress(contractPreID crypto.Digest) basics.Address {
-	addr, _, err := logicSigFromTemplateFile("layer2/committee-defer-logicsic.teal.template", contractPreID)
+	addr, _, err := logicSigFromTemplateFile("layer2/committee-defer-logicsig.teal.template", contractPreID)
 	if err != nil {
 		panic(err)
 	}
 	return addr
 }
 
-func logicSigFromTemplateFile(filename string, contractID crypto.Digest) (basics.Address, []byte, error) {
+func logicSigFromTemplateFile(filename string, contractPreID crypto.Digest) (basics.Address, []byte, error) {
 	t, err := template.ParseFiles(filename)
 	if err != nil {
 		return basics.Address{}, nil, fmt.Errorf("could not parse template file: %v", err)
 	}
 	b := &strings.Builder{}
-	err = t.Execute(b, contractID)
+	err = t.Execute(b, contractPreID)
 	if err != nil {
 		return basics.Address{}, nil, fmt.Errorf("could not execute template: %v", err)
 	}
