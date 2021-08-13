@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInMemoryStore(t *testing.T) {
-	store, _, err := NewStore()
+func TestStore(t *testing.T) {
+	store, err := NewStableStore(true)
 	require.NoError(t, err)
 
 	cid := ContractID(crypto.Hash([]byte("test")))
@@ -44,8 +44,11 @@ func TestInMemoryStore(t *testing.T) {
 	require.Equal(t, []byte("cccv"), ret[2].Value)
 }
 
-func TestInMemoryCache(t *testing.T) {
-	store, cache, err := NewStore()
+func TestCache(t *testing.T) {
+	store, err := NewStableStore(true)
+	require.NoError(t, err)
+
+	cache, err := store.Speculation()
 	require.NoError(t, err)
 
 	cid := ContractID(crypto.Hash([]byte("test")))
@@ -59,7 +62,7 @@ func TestInMemoryCache(t *testing.T) {
 	require.Nil(t, cache.Get(cid, []byte("cache-only-key")))
 
 	// Test read-your-writes.
-	cache.Write(cid, []byte("cache-only-key"), []byte("cache-only-value"))
+	cache.Write(cid, []byte("cache-only-key"), []byte("cache-only-value"), 1)
 	require.Equal(t, []byte("cache-only-value"), cache.Get(cid, []byte("cache-only-key")))
 
 	// Test commitment changed.
@@ -70,15 +73,22 @@ func TestInMemoryCache(t *testing.T) {
 	require.Equal(t, []byte("both-store-value"), cache.Get(cid, []byte("both-key")))
 
 	// Test overriding underlying store key.
-	cache.Write(cid, []byte("both-key"), []byte("both-cache-value"))
+	cache.Write(cid, []byte("both-key"), []byte("both-cache-value"), 1)
 	require.Equal(t, []byte("both-cache-value"), cache.Get(cid, []byte("both-key")))
 
 	// Test delete store key in cache.
-	cache.Write(cid, []byte("both-key"), nil)
+	cache.Write(cid, []byte("both-key"), nil, 1)
 	require.Nil(t, cache.Get(cid, []byte("both-key")))
+
+	// Test value remains in persistent store.
+	require.Equal(t, []byte("both-store-value"), store.Get(cid, []byte("both-key")))
 
 	// Test commitment changed again.
 	commit3 := cache.Commitment(cid)
 	require.NotEqual(t, commit2, commit3)
 
+	// Test reset.
+	cache.Reset()
+	require.Nil(t, cache.Get(cid, []byte("cache-only-key")))
+	require.Equal(t, commit1, cache.Commitment(cid))
 }

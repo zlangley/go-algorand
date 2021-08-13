@@ -1,22 +1,30 @@
 package layer2
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
-
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/protocol"
 	"github.com/algorand/go-algorand/util/db"
 )
 
-var schema = `
+var stableSchema = `
 	CREATE TABLE IF NOT EXISTS contract_key_value_pairs(
 		contract_id CHAR(58) NOT NULL,
 		key CHAR(256) NOT NULL,
 		value BLOB,
-        dirty INTEGER,
 		PRIMARY KEY (contract_id, key)
+	);
+`
+var speculationSchema = `
+	CREATE TABLE IF NOT EXISTS speculative_contract_key_value_pairs(
+		contract_id CHAR(58) NOT NULL,
+		key CHAR(256) NOT NULL,
+		value BLOB,
+		seqno INT,
+		PRIMARY KEY (contract_id, key, seqno)
 	);
 `
 
@@ -31,76 +39,39 @@ type KeyValuePair struct {
 	Value []byte `json:"value"`
 }
 
-type Store struct {
+type StableStore struct {
 	db db.Accessor
 }
 
 type SpeculationStore struct {
-	db db.Accessor
+	backingStore *StableStore
+	db    db.Accessor
 }
 
-func NewStore() (*Store, *SpeculationStore, error) {
-	db, err := db.MakeAccessor("contract.sqlite", false, true)
+func NewStableStore(inMemory bool) (*StableStore, error) {
+	dba, err := db.MakeAccessor("contract.sqlite", false, inMemory)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	_, err = db.Handle.Exec(schema)
+	_, err = dba.Handle.Exec(stableSchema)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return &Store{db: db}, &SpeculationStore{db}, nil
+	return &StableStore{db: dba}, nil
 }
 
-func (s *Store) Get(cid ContractID, key []byte) []byte {
-	return get(s.db, cid, key, false)
-}
-
-func (s *Store) Write(cid ContractID, key []byte, val []byte) {
-	if val == nil {
-		s.db.Handle.Exec(`
-			DELETE FROM
-		        contract_key_value_pairs
-    		WHERE
-    		    contract_id = $1 AND key = $2 AND dirty = 0
-		`, cid.String(), key)
-		return
-	}
-	write(s.db, cid, key, val, false)
-}
-
-func (s *Store) Select(cid ContractID) []KeyValuePair {
-	return selectPairs(s.db, cid, false)
-}
-
-func (s *SpeculationStore) Get(cid ContractID, key []byte) []byte {
-	return get(s.db, cid, key, true)
-}
-
-func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte) {
-	write(s.db, cid, key, val, true)
-}
-
-func (s *SpeculationStore) Commitment(cid ContractID) crypto.Digest {
-	kvs := selectPairs(s.db, cid, true)
-	encoded := protocol.EncodeJSON(kvs)
-	return crypto.Hash(encoded)
-}
-
-func get(db db.Accessor, cid ContractID, key []byte, includeDirty bool) []byte {
-	dirty := 0
-	if includeDirty {
-		dirty = 1
-	}
-	row := db.Handle.QueryRow(`
+func (s *StableStore) Get(cid ContractID, key []byte) []byte {
+	row := s.db.Handle.QueryRow(`
 		SELECT
 		    value
 		FROM
 		    contract_key_value_pairs
 		WHERE
-		    contract_id = $1 AND key = $2 AND dirty <= $3
+		    contract_id = $1 AND key = $2
 		LIMIT
 			1
-	`, cid.String(), key, dirty)
+	`, cid.String(), key)
+
 	var value []byte
 	err := row.Scan(&value)
 	if err == sql.ErrNoRows {
@@ -109,23 +80,143 @@ func get(db db.Accessor, cid ContractID, key []byte, includeDirty bool) []byte {
 	return value
 }
 
-func selectPairs(db db.Accessor, cid ContractID, includeDirty bool) []KeyValuePair {
-	dirtyBound := 0
-	if includeDirty {
-		dirtyBound = 1
+func (s *StableStore) Write(cid ContractID, key []byte, val []byte) {
+	if val == nil {
+		s.db.Handle.Exec(`
+			DELETE FROM
+		        contract_key_value_pairs
+    		WHERE
+    		    contract_id = $1 AND key = $2
+		`, cid.String(), key)
+		return
 	}
-	rows, err := db.Handle.Query(`
+	_, err := s.db.Handle.Exec(`
+		INSERT INTO contract_key_value_pairs(contract_id, key, value)
+		VALUES ($1, $2, $3)
+		ON CONFLICT(contract_id, key)
+		DO UPDATE SET value=$3;
+	`, cid.String(), key, val)
+	fmt.Println(err)
+}
+
+func (s *StableStore) Select(cid ContractID) []KeyValuePair {
+	rows, err := s.db.Handle.Query(`
 		SELECT
 			key, value
 		FROM
 			contract_key_value_pairs
 		WHERE
-			contract_id = $1 AND dirty <= $2
+			contract_id = $1
 		ORDER BY
 			key ASC
-    `, cid.String(), dirtyBound)
+    `, cid.String())
+	fmt.Println(err)
+	return resultSetToKVPairs(rows)
+}
+
+
+func (s *StableStore) Speculation() (*SpeculationStore, error) {
+	dba, err := db.MakeAccessor("layer2speculation.sqlite", false, true)
+	if err != nil {
+		return nil, err
+	}
+	_, err = dba.Handle.Exec(speculationSchema)
+	if err != nil {
+		return nil, err
+	}
+	spec := &SpeculationStore{backingStore: s, db: dba}
+	spec.Reset()
+	return spec, nil
+}
+
+func (s *SpeculationStore) Get(cid ContractID, key []byte) []byte {
+	row := s.db.Handle.QueryRow(`
+		SELECT
+		    value
+		FROM
+		    speculative_contract_key_value_pairs
+		WHERE
+		    contract_id = $1 AND key = $2
+		ORDER BY
+			seqno DESC
+		LIMIT
+			1
+	`, cid.String(), key)
+
+	var value []byte
+	err := row.Scan(&value)
+	if err == sql.ErrNoRows {
+		value = s.backingStore.Get(cid, key)
+	}
+	return value
+}
+
+func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, seqno int) {
+	_, err := s.db.Handle.Exec(`
+		INSERT INTO speculative_contract_key_value_pairs(contract_id, key, value, seqno)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT(contract_id, key, seqno)
+		DO UPDATE SET value=$3;
+	`, cid.String(), key, val, seqno)
+	fmt.Println(err)
+}
+
+func (s *SpeculationStore) Commitment(cid ContractID) crypto.Digest {
+	rows, err := s.db.Handle.Query(`
+		SELECT
+			a.key, a.value
+		FROM
+			speculative_contract_key_value_pairs a
+			LEFT JOIN
+				speculative_contract_key_value_pairs b
+			ON
+				a.key = b.key AND 
+				a.seqno < b.seqno
+		WHERE
+			a.contract_id = $1 AND b.seqno IS NULL
+		ORDER BY
+			a.key ASC
+    `, cid.String())
 	fmt.Println(err)
 
+	cachePairs := resultSetToKVPairs(rows)
+	storePairs := s.backingStore.Select(cid)
+	merged := mergeKeyValuePairs(storePairs, cachePairs)
+	encoded := protocol.EncodeJSON(merged)
+	return crypto.Hash(encoded)
+}
+
+func (s *SpeculationStore) Reset() {
+	_, err := s.db.Handle.Exec("DELETE FROM speculative_contract_key_value_pairs")
+	fmt.Println(err)
+}
+
+func mergeKeyValuePairs(storePairs, cachePairs []KeyValuePair) []KeyValuePair {
+	var cidx, sidx int
+	var merged []KeyValuePair
+	for cidx < len(cachePairs) && sidx < len(storePairs) {
+		ckv := cachePairs[cidx]
+		skv := storePairs[sidx]
+		if bytes.Compare(skv.Key, ckv.Key) < 0 {
+			merged = append(merged, storePairs[sidx])
+			sidx++
+		} else {
+			merged = append(merged, cachePairs[cidx])
+			cidx++
+		}
+	}
+	for cidx < len(cachePairs) {
+		merged = append(merged, cachePairs[cidx])
+		cidx++
+	}
+	for sidx < len(storePairs) {
+		merged = append(merged, storePairs[sidx])
+		sidx++
+	}
+	return merged
+}
+
+func resultSetToKVPairs(rows *sql.Rows) []KeyValuePair {
 	var kvs []KeyValuePair
 	for rows.Next() {
 		var key, value []byte
@@ -133,21 +224,4 @@ func selectPairs(db db.Accessor, cid ContractID, includeDirty bool) []KeyValuePa
 		kvs = append(kvs, KeyValuePair{key, value})
 	}
 	return kvs
-}
-
-func write(db db.Accessor, cid ContractID, key []byte, val []byte, isDirty bool) {
-	dirtyBit := 0
-	if isDirty {
-		dirtyBit = 1
-	}
-	// TODO: handle nil values
-	_, err := db.Handle.Exec(`
-		INSERT INTO contract_key_value_pairs(contract_id, key, value, dirty)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT(contract_id, key)
-		DO UPDATE SET
-			value=$3,
-		    dirty=$4;
-	`, cid.String(), key, val, dirtyBit)
-	fmt.Println(err)
 }
