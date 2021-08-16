@@ -8,51 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStore(t *testing.T) {
-	store, err := NewStableStore(true)
-	require.NoError(t, err)
-
-	cid := ContractID(crypto.Hash([]byte("test")))
-	ret, err := store.Select(cid)
-	require.NoError(t, err)
-	require.Empty(t, ret)
-
-	store.Write(cid, []byte("bbbk"), []byte("bbbv"))
-	val, err := store.Get(cid, []byte("bbbk"))
-	require.NoError(t, err)
-	require.Equal(t, val, []byte("bbbv"))
-
-	store.Write(cid, []byte("ccck"), []byte("cccv"))
-	val, err = store.Get(cid, []byte("ccck"))
-	require.NoError(t, err)
-	require.Equal(t, val, []byte("cccv"))
-
-	require.NoError(t, store.Write(cid, []byte("dddk"), []byte("dddv")))
-	require.NoError(t, store.Write(cid, []byte("dddk"), nil))
-	val, err = store.Get(cid, []byte("dddk"))
-	require.Equal(t, sql.ErrNoRows, err)
-	require.Nil(t, val)
-
-	store.Write(cid, []byte("aaak"), []byte("aaav"))
-	val, err = store.Get(cid, []byte("aaak"))
-	require.NoError(t, err)
-	require.Equal(t, val, []byte("aaav"))
-
-	cid2 := ContractID(crypto.Hash([]byte("test2")))
-	store.Write(cid2, []byte("foo"), []byte("bar2"))
-
-	ret, err = store.Select(cid)
-	require.NoError(t, err)
-	require.Equal(t, 3, len(ret))
-	require.Equal(t, []byte("aaak"), ret[0].Key)
-	require.Equal(t, []byte("aaav"), ret[0].Value)
-	require.Equal(t, []byte("bbbk"), ret[1].Key)
-	require.Equal(t, []byte("bbbv"), ret[1].Value)
-	require.Equal(t, []byte("ccck"), ret[2].Key)
-	require.Equal(t, []byte("cccv"), ret[2].Value)
-}
-
-func TestCache(t *testing.T) {
+func TestIntegration(t *testing.T) {
 	store, err := NewStableStore(true)
 	require.NoError(t, err)
 
@@ -61,8 +17,10 @@ func TestCache(t *testing.T) {
 
 	cid := ContractID(crypto.Hash([]byte("test")))
 
-	store.Write(cid, []byte("store-only-key"), []byte("store-only-value"))
-	store.Write(cid, []byte("both-key"), []byte("both-store-value"))
+	_, err = store.db.Handle.Exec("INSERT INTO contract_kv_pairs(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("store-only-key"), []byte("store-only-value"))
+	require.NoError(t, err)
+	_, err = store.db.Handle.Exec("INSERT INTO contract_kv_pairs(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("both-key"), []byte("both-store-value"))
+	require.NoError(t, err)
 
 	commit1, err := cache.Commitment(cid)
 	require.NoError(t, err)

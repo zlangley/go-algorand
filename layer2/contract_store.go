@@ -76,25 +76,6 @@ func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	return value, err
 }
 
-func (s *StableStore) Write(cid ContractID, key []byte, val []byte) error {
-	if val == nil {
-		_, err := s.db.Handle.Exec(`
-			DELETE FROM
-		        contract_kv_pairs
-    		WHERE
-    		    contract_id = $1 AND key = $2
-		`, cid.String(), key)
-		return err
-	}
-	_, err := s.db.Handle.Exec(`
-		INSERT INTO contract_kv_pairs(contract_id, key, value)
-		VALUES ($1, $2, $3)
-		ON CONFLICT(contract_id, key)
-		DO UPDATE SET value=$3;
-	`, cid.String(), key, val)
-	return err
-}
-
 func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 	rows, err := s.db.Handle.Query(`
 		SELECT
