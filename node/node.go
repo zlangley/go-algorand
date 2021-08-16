@@ -20,6 +20,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"github.com/algorand/go-algorand/layer2"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -135,8 +136,12 @@ type AlgorandFullNode struct {
 
 	compactCert *compactcert.Worker
 
-	specMu      deadlock.Mutex
-	speculation map[string]*data.SpeculationLedger
+	batchIdx int
+
+	specMu                   deadlock.Mutex
+	speculation              map[string]*data.SpeculationLedger
+	offChainStore            *layer2.StableStore
+	offChainSpeculationStore *layer2.SpeculationStore
 }
 
 // TxnWithStatus represents information about a single transaction,
@@ -515,6 +520,40 @@ func (node *AlgorandFullNode) SpeculationLedger(token string) (*data.Speculation
 // "named" SpeculationLedger.
 func (node *AlgorandFullNode) DestroySpeculationLedger(token string) {
 	delete(node.speculation, token)
+}
+
+func (node *AlgorandFullNode) OffChainStore() (*layer2.StableStore, error) {
+	node.specMu.Lock()
+	defer node.specMu.Unlock()
+	if node.offChainStore == nil {
+		var err error
+		node.offChainStore, err = layer2.NewStableStore(false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return node.offChainStore, nil
+}
+
+func (node *AlgorandFullNode) OffChainSpeculationStore() (*layer2.SpeculationStore, error) {
+	node.specMu.Lock()
+	defer node.specMu.Unlock()
+	if node.offChainSpeculationStore == nil {
+		store, err := node.OffChainStore()
+		if err != nil {
+			return nil, err
+		}
+		node.offChainSpeculationStore = store.Speculation()
+	}
+	return node.offChainSpeculationStore, nil
+}
+
+func (node *AlgorandFullNode) BatchIndex() int {
+	return node.batchIdx
+}
+
+func (node *AlgorandFullNode) IncrementBatchIndex() {
+	node.batchIdx++
 }
 
 // writeDevmodeBlock generates a new block for a devmode, and write it to the ledger.

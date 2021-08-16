@@ -98,16 +98,15 @@ func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 
 type SpeculationStore struct {
 	backingStore *StableStore
-	db		   db.Accessor
+	db           db.Accessor
 }
 
-func (s *StableStore) Speculation() (*SpeculationStore, error) {
+func (s *StableStore) Speculation() *SpeculationStore {
 	_, err := s.db.Handle.Exec(speculationSchema)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	spec := &SpeculationStore{backingStore: s, db: s.db}
-	return spec, nil
+	return &SpeculationStore{backingStore: s, db: s.db}
 }
 
 func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {

@@ -2968,6 +2968,76 @@
         ]
       }
     },
+    "/v2/speculation/read/{contract_id}/{key}": {
+      "get": {
+        "description": "Reads from the (speculative) contract storage",
+        "operationId": "ContractStorageGet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {}
+          }
+        }
+      }
+    },
+    "/v2/speculation/write/{contract_id}/{key}": {
+      "post": {
+        "description": "Writes to the (speculative) contract storage",
+        "operationId": "ContractStorageWrite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {}
+          }
+        },
+        "x-codegen-request-body-name": "value"
+      }
+    },
     "/v2/speculation/{speculation}/{operation}": {
       "post": {
         "description": "Given a speculation token, perform a scope opening or closing operation",

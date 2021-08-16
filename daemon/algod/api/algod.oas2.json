@@ -1170,6 +1170,65 @@
         }
       ]
     },
+    "/v2/speculation/read/{contract_id}/{key}": {
+      "get": {
+        "description": "Reads from the (speculative) contract storage",
+        "operationId": "ContractStorageGet",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "contract_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "name": "key",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "/v2/speculation/write/{contract_id}/{key}": {
+      "post": {
+        "description": "Writes to the (speculative) contract storage",
+        "operationId": "ContractStorageWrite",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "type": "string",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "value",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "/v2/speculation/{speculation}/{operation}": {
       "post": {
         "description": "Given a speculation token, perform a scope opening or closing operation",

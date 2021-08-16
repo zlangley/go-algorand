@@ -22,8 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/algorand/go-algorand/data/committee"
-	"github.com/algorand/go-algorand/layer2"
 	"io"
 	"math"
 	"math/rand"
@@ -42,8 +40,10 @@ import (
 	"github.com/algorand/go-algorand/data"
 	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/data/bookkeeping"
+	"github.com/algorand/go-algorand/data/committee"
 	"github.com/algorand/go-algorand/data/transactions"
 	"github.com/algorand/go-algorand/data/transactions/logic"
+	"github.com/algorand/go-algorand/layer2"
 	"github.com/algorand/go-algorand/layer2/kalgo"
 	"github.com/algorand/go-algorand/ledger/ledgercore"
 	"github.com/algorand/go-algorand/logging"
@@ -79,9 +79,16 @@ type ledgerForApiHandlers interface {
 // NodeInterface represents node fns used by the handlers.
 type NodeInterface interface {
 	Ledger() *data.Ledger
+
 	NewSpeculationLedger(rnd basics.Round) (string, error)
 	SpeculationLedger(token string) (*data.SpeculationLedger, error)
 	DestroySpeculationLedger(token string)
+
+	BatchIndex() int
+	IncrementBatchIndex()
+	OffChainStore() (*layer2.StableStore, error)
+	OffChainSpeculationStore() (*layer2.SpeculationStore, error)
+
 	Status() (s node.StatusReport, err error)
 	GenesisID() string
 	GenesisHash() crypto.Digest
@@ -400,6 +407,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 		if err := ex.Submit(item, prof); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
+		v2.Node.IncrementBatchIndex()
 	}
 
 	// TODO: Step 3: Make fully authorized effects txns.
@@ -1135,4 +1143,41 @@ func (v2 *Handlers) TealCompile(ctx echo.Context) error {
 		Result: base64.StdEncoding.EncodeToString(ops.Program),
 	}
 	return ctx.JSON(http.StatusOK, response)
+}
+
+// Calls a function on a previously initialized contract.
+// (POST /v2/contracts/batch)
+func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key string) error {
+	spec, err := v2.Node.OffChainSpeculationStore()
+	if err != nil {
+		return internalError(ctx, err, "failed to connect to stable storage", v2.Log)
+	}
+	addr, err := basics.UnmarshalChecksumAddress(contractId)
+	if err != nil {
+		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
+	}
+	val, err := spec.Get(layer2.ContractID(addr), []byte(key))
+	if err != nil {
+		return internalError(ctx, err, "failed to connect to stable storage", v2.Log)
+	}
+	return ctx.String(http.StatusOK, string(val))
+}
+
+func (v2 *Handlers) ContractStorageWrite(ctx echo.Context, contractId string, key string) error {
+	spec, err := v2.Node.OffChainSpeculationStore()
+	if err != nil {
+		return internalError(ctx, err, "failed to connect to stable storage", v2.Log)
+	}
+	addr, err := basics.UnmarshalChecksumAddress(contractId)
+	if err != nil {
+		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
+	}
+	req := ctx.Request()
+	buf := new(bytes.Buffer)
+	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClarityBatchBytes)
+	buf.ReadFrom(req.Body)
+	data := buf.Bytes()
+
+	spec.Write(layer2.ContractID(addr), []byte(key), data, v2.Node.BatchIndex())
+	return ctx.String(http.StatusOK, string(data))
 }

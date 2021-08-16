@@ -779,6 +779,9 @@ type ContractBatchExecuteParams struct {
 	Speculation *string `json:"speculation,omitempty"`
 }
 
+// ContractStorageWriteJSONBody defines parameters for ContractStorageWrite.
+type ContractStorageWriteJSONBody string
+
 // TealDryrunJSONBody defines parameters for TealDryrun.
 type TealDryrunJSONBody DryrunRequest
 
@@ -812,6 +815,9 @@ type PendingTransactionInformationParams struct {
 	// Configures whether the response object is JSON or MessagePack encoded.
 	Format *string `json:"format,omitempty"`
 }
+
+// ContractStorageWriteRequestBody defines body for ContractStorageWrite for application/json ContentType.
+type ContractStorageWriteJSONRequestBody ContractStorageWriteJSONBody
 
 // TealDryrunRequestBody defines body for TealDryrun for application/json ContentType.
 type TealDryrunJSONRequestBody TealDryrunJSONBody

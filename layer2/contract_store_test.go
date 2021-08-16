@@ -12,7 +12,7 @@ func TestIntegration(t *testing.T) {
 	store, err := NewStableStore(true)
 	require.NoError(t, err)
 
-	cache, err := store.Speculation()
+	cache := store.Speculation()
 	require.NoError(t, err)
 
 	cid := ContractID(crypto.Hash([]byte("test")))
