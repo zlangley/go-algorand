@@ -22,7 +22,7 @@ func TestIntegration(t *testing.T) {
 	_, err = store.db.Handle.Exec("INSERT INTO contract_kv_pairs(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("both-key"), []byte("both-store-value"))
 	require.NoError(t, err)
 
-	commit1, err := cache.Commitment(cid)
+	commit1, err := cache.Commitment(cid) // {store-only-key: store-only-value, both-key: both-store-value}
 	require.NoError(t, err)
 
 	// Test absence of key.
@@ -37,7 +37,7 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, []byte("cache-only-value"), val)
 
 	// Test commitment changed.
-	commit2, err := cache.Commitment(cid)
+	commit2, err := cache.Commitment(cid) // {store-only-key: store-only-value, both-key: both-store-value, cache-only-key: cache-only-value}
 	require.NoError(t, err)
 	require.NotEqual(t, commit1, commit2)
 
@@ -63,8 +63,8 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("both-store-value"), val)
 
-	// Test commitment changed again.
-	commit3, err := cache.Commitment(cid)
+	// Test commitment reverted.
+	commit3, err := cache.Commitment(cid) // {store-only-key: store-only-value, cache-only-key: cache-only-value}
 	require.NoError(t, err)
 	require.NotEqual(t, commit2, commit3)
 
@@ -93,4 +93,8 @@ func TestIntegration(t *testing.T) {
 	val, err = store.Get(cid, []byte("cache-only-key"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("cache-only-value"), val)
+
+	commit4, err := cache.Commitment(cid)
+	require.NoError(t, err)
+	require.Equal(t, commit3, commit4)
 }

@@ -232,7 +232,12 @@ func mergeKeyValuePairs(storePairs, cachePairs []KeyValuePair) []KeyValuePair {
 			merged = append(merged, storePairs[sidx])
 			sidx++
 		} else {
-			merged = append(merged, cachePairs[cidx])
+			if cachePairs[cidx].Value != nil {
+				merged = append(merged, cachePairs[cidx])
+			}
+			if bytes.Compare(cachePairs[cidx].Key, storePairs[sidx].Key) == 0 {
+				sidx++
+			}
 			cidx++
 		}
 	}
