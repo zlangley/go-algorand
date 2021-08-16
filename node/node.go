@@ -543,7 +543,7 @@ func (node *AlgorandFullNode) OffChainSpeculationStore() (*layer2.SpeculationSto
 		if err != nil {
 			return nil, err
 		}
-		node.offChainSpeculationStore = store.Speculation()
+		node.offChainSpeculationStore = layer2.NewSpeculationStore(store)
 	}
 	return node.offChainSpeculationStore, nil
 }

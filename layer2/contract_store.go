@@ -42,7 +42,7 @@ func (cid ContractID) String() string {
 	return basics.Address(cid).String()
 }
 
-type KeyValuePair struct {
+type kvPair struct {
 	Key   []byte `json:"key""`
 	Value []byte `json:"value"`
 }
@@ -78,7 +78,7 @@ func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	return value, err
 }
 
-func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
+func (s *StableStore) kvPairs(cid ContractID) ([]kvPair, error) {
 	rows, err := s.db.Handle.Query(`
 		SELECT
 			key, value
@@ -101,12 +101,15 @@ type SpeculationStore struct {
 	db           db.Accessor
 }
 
-func (s *StableStore) Speculation() *SpeculationStore {
-	_, err := s.db.Handle.Exec(speculationSchema)
+func NewSpeculationStore(backingStore *StableStore) *SpeculationStore {
+	_, err := backingStore.db.Handle.Exec(speculationSchema)
 	if err != nil {
-		panic(err)
+		_, err = backingStore.db.Handle.Exec("DETACH DATABASE speculation;" + speculationSchema)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return &SpeculationStore{backingStore: s, db: s.db}
+	return &SpeculationStore{backingStore: backingStore, db: backingStore.db}
 }
 
 func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
@@ -125,7 +128,7 @@ func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	err := row.Scan(&value)
 	if err == sql.ErrNoRows {
 		value, err = s.backingStore.Get(cid, key)
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil {
 			return nil, err
 		}
 	} else if err != nil {
@@ -213,7 +216,7 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 	}
 
 	cachePairs := resultSetToKVPairs(rows)
-	storePairs, err := s.backingStore.Select(cid)
+	storePairs, err := s.backingStore.kvPairs(cid)
 	if err != nil {
 		return crypto.Digest{}, err
 	}
@@ -222,9 +225,9 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 	return crypto.Hash(encoded), nil
 }
 
-func mergeKeyValuePairs(storePairs, cachePairs []KeyValuePair) []KeyValuePair {
+func mergeKeyValuePairs(storePairs, cachePairs []kvPair) []kvPair {
 	var cidx, sidx int
-	var merged []KeyValuePair
+	var merged []kvPair
 	for cidx < len(cachePairs) && sidx < len(storePairs) {
 		ckv := cachePairs[cidx]
 		skv := storePairs[sidx]
@@ -252,12 +255,12 @@ func mergeKeyValuePairs(storePairs, cachePairs []KeyValuePair) []KeyValuePair {
 	return merged
 }
 
-func resultSetToKVPairs(rows *sql.Rows) []KeyValuePair {
-	var kvs []KeyValuePair
+func resultSetToKVPairs(rows *sql.Rows) []kvPair {
+	var kvs []kvPair
 	for rows.Next() {
 		var key, value []byte
 		rows.Scan(&key, &value)
-		kvs = append(kvs, KeyValuePair{key, value})
+		kvs = append(kvs, kvPair{key, value})
 	}
 	return kvs
 }

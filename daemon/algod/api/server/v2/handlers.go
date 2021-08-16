@@ -1145,8 +1145,7 @@ func (v2 *Handlers) TealCompile(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
-// Calls a function on a previously initialized contract.
-// (POST /v2/contracts/batch)
+// (POST /v2/speculation/get/<contractId>/<key>)
 func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key string) error {
 	spec, err := v2.Node.OffChainSpeculationStore()
 	if err != nil {
@@ -1163,6 +1162,7 @@ func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key 
 	return ctx.String(http.StatusOK, string(val))
 }
 
+// (POST /v2/speculation/write/<contractId>/<key>)
 func (v2 *Handlers) ContractStorageWrite(ctx echo.Context, contractId string, key string) error {
 	spec, err := v2.Node.OffChainSpeculationStore()
 	if err != nil {

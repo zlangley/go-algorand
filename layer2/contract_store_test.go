@@ -12,7 +12,7 @@ func TestIntegration(t *testing.T) {
 	store, err := NewStableStore(true)
 	require.NoError(t, err)
 
-	cache := store.Speculation()
+	cache := NewSpeculationStore(store)
 	require.NoError(t, err)
 
 	cid := ContractID(crypto.Hash([]byte("test")))
@@ -27,7 +27,7 @@ func TestIntegration(t *testing.T) {
 
 	// Test absence of key.
 	val, err := cache.Get(cid, []byte("cache-only-key"))
-	require.NoError(t, err)
+	require.Error(t, sql.ErrNoRows, err)
 	require.Nil(t, val)
 
 	// Test read-your-writes.
@@ -94,7 +94,22 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("cache-only-value"), val)
 
+	// Commitment should stay the same.
 	commit4, err := cache.Commitment(cid)
 	require.NoError(t, err)
 	require.Equal(t, commit3, commit4)
+}
+
+func TestNewSpeculationStore(t *testing.T) {
+	cid := ContractID(crypto.Hash([]byte("test")))
+
+	store, err := NewStableStore(true)
+	require.NoError(t, err)
+	spec := NewSpeculationStore(store)
+	spec.Write(cid, []byte("foo"), []byte("bar"), 0)
+	spec = NewSpeculationStore(store)
+	val, err := spec.Get(cid, []byte("foo"))
+	require.Equal(t, sql.ErrNoRows, err)
+	require.Nil(t, val)
+
 }
