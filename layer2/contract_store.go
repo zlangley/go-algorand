@@ -18,20 +18,22 @@ var stableSchema = `
 	);
 `
 var speculationSchema = `
+	ATTACH DATABASE ':memory:' AS speculation;
+
 	CREATE TABLE speculation.sequenced_contract_kv_pairs(
 		contract_id CHAR(58) NOT NULL,
+		batch_idx INT,
 		key CHAR(256) NOT NULL,
 		value BLOB,
-		batch_idx INT,
 		PRIMARY KEY (contract_id, key, batch_idx)
 	);
 
 	CREATE INDEX speculation.sequenced_contact_kv_pairs__batch_idx__idx ON sequenced_contract_kv_pairs(batch_idx);
 
 	CREATE TABLE speculation.txgroups(
-	    group_id CHAR(58) NOT NULL PRIMARY KEY,
-	    batch_idx INT
-    );
+		group_id CHAR(58) NOT NULL PRIMARY KEY,
+		batch_idx INT
+	);
 `
 
 type ContractID basics.Address
@@ -64,11 +66,11 @@ func NewStableStore(inMemory bool) (*StableStore, error) {
 func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	row := s.db.Handle.QueryRow(`
 		SELECT
-		    value
+			value
 		FROM
-		    contract_kv_pairs
+			contract_kv_pairs
 		WHERE
-		    contract_id = $1 AND key = $2
+			contract_id = $1 AND key = $2
 	`, cid.String(), key)
 
 	var value []byte
@@ -86,7 +88,7 @@ func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 			contract_id = $1
 		ORDER BY
 			key ASC
-    `, cid.String())
+	`, cid.String())
 
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
@@ -96,31 +98,26 @@ func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 
 type SpeculationStore struct {
 	backingStore *StableStore
-	db           db.Accessor
+	db		   db.Accessor
 }
 
 func (s *StableStore) Speculation() (*SpeculationStore, error) {
-	_, err := s.db.Handle.Exec("ATTACH DATABASE ':memory:' AS speculation")
-	dba := s.db
+	_, err := s.db.Handle.Exec(speculationSchema)
 	if err != nil {
 		return nil, err
 	}
-	_, err = dba.Handle.Exec(speculationSchema)
-	if err != nil {
-		return nil, err
-	}
-	spec := &SpeculationStore{backingStore: s, db: dba}
+	spec := &SpeculationStore{backingStore: s, db: s.db}
 	return spec, nil
 }
 
 func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	row := s.db.Handle.QueryRow(`
 		SELECT
-		    value
+			value
 		FROM
-		    sequenced_contract_kv_pairs
+			sequenced_contract_kv_pairs
 		WHERE
-		    contract_id = $1 AND key = $2
+			contract_id = $1 AND key = $2
 		ORDER BY
 			batch_idx DESC
 	`, cid.String(), key)
@@ -141,10 +138,8 @@ func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 
 func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, batch_idx int) {
 	_, err := s.db.Handle.Exec(`
-		INSERT INTO sequenced_contract_kv_pairs(contract_id, key, value, batch_idx)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT(contract_id, key, batch_idx)
-		DO UPDATE SET value=$3;
+		INSERT OR REPLACE INTO sequenced_contract_kv_pairs(contract_id, key, value, batch_idx)
+		VALUES ($1, $2, $3, $4);
 	`, cid.String(), key, val, batch_idx)
 	if err != nil {
 		panic(err)
@@ -161,10 +156,16 @@ func (s *SpeculationStore) SetBatchIndexGroup(batch_idx int, groupID crypto.Dige
 func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 	// NULL values need to be handled separately; a NULL value in the cache
 	// represents a deletion when we persist, while any other values correspond to upserts.
+	//
+	// Here we leverage that the speculation database is attached to the persistent one;
+	// rather than fetch from the in-memory database, parse the result set, and then issue
+	// upserts/deletes to the persistent database, we can just write two simple SQL statements.
+	// If we wanted to use some other key-value store implementation for the persistent
+	// database, this would need to be changed.
 	_, err := s.db.Handle.Exec(`
 		DELETE FROM contract_kv_pairs
 		WHERE (contract_id, key) IN (
-      		SELECT contract_id, key FROM
+			SELECT contract_id, key FROM
 				txgroups t
 			JOIN sequenced_contract_kv_pairs s ON
 				t.batch_idx = s.batch_idx
@@ -178,7 +179,7 @@ func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 		JOIN sequenced_contract_kv_pairs s ON
 			t.batch_idx = s.batch_idx
 		WHERE
-			t.group_id = $1 AND s.value IS NOT NULL;
+			t.group_id = $2 AND s.value IS NOT NULL;
 	`, groupID.String(), groupID.String())
 	if err != nil {
 		return err
@@ -187,6 +188,9 @@ func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 }
 
 func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
+	// Since the databases are attached, we could get the latest key-value pairs
+	// with a JOIN, but it seems more complicated than just manually merging two
+	// separate queries (especially since sqlite3 does not support full outer joins).
 	rows, err := s.db.Handle.Query(`
 		SELECT
 			a.key, a.value
@@ -195,13 +199,16 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 			LEFT JOIN
 				sequenced_contract_kv_pairs b
 			ON
+				a.contract_id = b.contract_id AND
 				a.key = b.key AND 
 				a.batch_idx < b.batch_idx
 		WHERE
 			a.contract_id = $1 AND b.batch_idx IS NULL
 		ORDER BY
 			a.key ASC
-    `, cid.String())
+	`, cid.String())
+
+	// In-memory db should never fail.
 	if err != nil {
 		panic(err)
 	}
