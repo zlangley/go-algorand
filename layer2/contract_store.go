@@ -3,7 +3,6 @@ package layer2
 import (
 	"bytes"
 	"database/sql"
-
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/protocol"
@@ -11,21 +10,28 @@ import (
 )
 
 var stableSchema = `
-	CREATE TABLE IF NOT EXISTS contract_key_value_pairs(
+	CREATE TABLE IF NOT EXISTS contract_kv_pairs(
 		contract_id CHAR(58) NOT NULL,
 		key CHAR(256) NOT NULL,
-		value BLOB,
+		value BLOB NOT NULL,
 		PRIMARY KEY (contract_id, key)
 	);
 `
 var speculationSchema = `
-	CREATE TABLE IF NOT EXISTS speculative_contract_key_value_pairs(
+	CREATE TABLE speculation.sequenced_contract_kv_pairs(
 		contract_id CHAR(58) NOT NULL,
 		key CHAR(256) NOT NULL,
 		value BLOB,
-		seqno INT,
-		PRIMARY KEY (contract_id, key, seqno)
+		batch_idx INT,
+		PRIMARY KEY (contract_id, key, batch_idx)
 	);
+
+	CREATE INDEX speculation.sequenced_contact_kv_pairs__batch_idx__idx ON sequenced_contract_kv_pairs(batch_idx);
+
+	CREATE TABLE speculation.txgroups(
+	    group_id CHAR(58) NOT NULL PRIMARY KEY,
+	    batch_idx INT
+    );
 `
 
 type ContractID basics.Address
@@ -41,11 +47,6 @@ type KeyValuePair struct {
 
 type StableStore struct {
 	db db.Accessor
-}
-
-type SpeculationStore struct {
-	backingStore *StableStore
-	db           db.Accessor
 }
 
 func NewStableStore(inMemory bool) (*StableStore, error) {
@@ -65,39 +66,28 @@ func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 		SELECT
 		    value
 		FROM
-		    contract_key_value_pairs
+		    contract_kv_pairs
 		WHERE
 		    contract_id = $1 AND key = $2
-		LIMIT
-			1
 	`, cid.String(), key)
-
-	if err := row.Err(); err != nil {
-		return nil, err
-	}
 
 	var value []byte
 	err := row.Scan(&value)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	return value, nil
+	return value, err
 }
 
 func (s *StableStore) Write(cid ContractID, key []byte, val []byte) error {
 	if val == nil {
 		_, err := s.db.Handle.Exec(`
 			DELETE FROM
-		        contract_key_value_pairs
+		        contract_kv_pairs
     		WHERE
     		    contract_id = $1 AND key = $2
 		`, cid.String(), key)
 		return err
 	}
 	_, err := s.db.Handle.Exec(`
-		INSERT INTO contract_key_value_pairs(contract_id, key, value)
+		INSERT INTO contract_kv_pairs(contract_id, key, value)
 		VALUES ($1, $2, $3)
 		ON CONFLICT(contract_id, key)
 		DO UPDATE SET value=$3;
@@ -110,7 +100,7 @@ func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 		SELECT
 			key, value
 		FROM
-			contract_key_value_pairs
+			contract_kv_pairs
 		WHERE
 			contract_id = $1
 		ORDER BY
@@ -123,8 +113,14 @@ func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 	return resultSetToKVPairs(rows), nil
 }
 
+type SpeculationStore struct {
+	backingStore *StableStore
+	db           db.Accessor
+}
+
 func (s *StableStore) Speculation() (*SpeculationStore, error) {
-	dba, err := db.MakeAccessor("layer2speculation.sqlite", false, true)
+	_, err := s.db.Handle.Exec("ATTACH DATABASE ':memory:' AS speculation")
+	dba := s.db
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +129,6 @@ func (s *StableStore) Speculation() (*SpeculationStore, error) {
 		return nil, err
 	}
 	spec := &SpeculationStore{backingStore: s, db: dba}
-	spec.Reset()
 	return spec, nil
 }
 
@@ -142,18 +137,12 @@ func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 		SELECT
 		    value
 		FROM
-		    speculative_contract_key_value_pairs
+		    sequenced_contract_kv_pairs
 		WHERE
 		    contract_id = $1 AND key = $2
 		ORDER BY
-			seqno DESC
-		LIMIT
-			1
+			batch_idx DESC
 	`, cid.String(), key)
-
-	if err := row.Err(); err != nil {
-		panic(err)
-	}
 
 	var value []byte
 	err := row.Scan(&value)
@@ -169,16 +158,51 @@ func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	return value, nil
 }
 
-func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, seqno int) {
+func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, batch_idx int) {
 	_, err := s.db.Handle.Exec(`
-		INSERT INTO speculative_contract_key_value_pairs(contract_id, key, value, seqno)
+		INSERT INTO sequenced_contract_kv_pairs(contract_id, key, value, batch_idx)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT(contract_id, key, seqno)
+		ON CONFLICT(contract_id, key, batch_idx)
 		DO UPDATE SET value=$3;
-	`, cid.String(), key, val, seqno)
+	`, cid.String(), key, val, batch_idx)
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (s *SpeculationStore) SetBatchIndexGroup(batch_idx int, groupID crypto.Digest) {
+	_, err := s.db.Handle.Exec("INSERT INTO txgroups(group_id, batch_idx) VALUES ($1, $2)", groupID.String(), batch_idx)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
+	// NULL values need to be handled separately; a NULL value in the cache
+	// represents a deletion when we persist, while any other values correspond to upserts.
+	_, err := s.db.Handle.Exec(`
+		DELETE FROM contract_kv_pairs
+		WHERE (contract_id, key) IN (
+      		SELECT contract_id, key FROM
+				txgroups t
+			JOIN sequenced_contract_kv_pairs s ON
+				t.batch_idx = s.batch_idx
+			WHERE
+				t.group_id = $1 AND s.value IS NULL
+		);
+
+		INSERT OR REPLACE INTO contract_kv_pairs(contract_id, key, value)
+		SELECT contract_id, key, value FROM
+			txgroups t
+		JOIN sequenced_contract_kv_pairs s ON
+			t.batch_idx = s.batch_idx
+		WHERE
+			t.group_id = $1 AND s.value IS NOT NULL;
+	`, groupID.String(), groupID.String())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
@@ -186,14 +210,14 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 		SELECT
 			a.key, a.value
 		FROM
-			speculative_contract_key_value_pairs a
+			sequenced_contract_kv_pairs a
 			LEFT JOIN
-				speculative_contract_key_value_pairs b
+				sequenced_contract_kv_pairs b
 			ON
 				a.key = b.key AND 
-				a.seqno < b.seqno
+				a.batch_idx < b.batch_idx
 		WHERE
-			a.contract_id = $1 AND b.seqno IS NULL
+			a.contract_id = $1 AND b.batch_idx IS NULL
 		ORDER BY
 			a.key ASC
     `, cid.String())
@@ -209,13 +233,6 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 	merged := mergeKeyValuePairs(storePairs, cachePairs)
 	encoded := protocol.EncodeJSON(merged)
 	return crypto.Hash(encoded), nil
-}
-
-func (s *SpeculationStore) Reset() {
-	_, err := s.db.Handle.Exec("DELETE FROM speculative_contract_key_value_pairs")
-	if err != nil {
-		panic(err)
-	}
 }
 
 func mergeKeyValuePairs(storePairs, cachePairs []KeyValuePair) []KeyValuePair {

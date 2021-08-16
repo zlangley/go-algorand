@@ -1,6 +1,7 @@
 package layer2
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/algorand/go-algorand/crypto"
@@ -29,7 +30,7 @@ func TestStore(t *testing.T) {
 	require.NoError(t, store.Write(cid, []byte("dddk"), []byte("dddv")))
 	require.NoError(t, store.Write(cid, []byte("dddk"), nil))
 	val, err = store.Get(cid, []byte("dddk"))
-	require.NoError(t, err)
+	require.Equal(t, sql.ErrNoRows, err)
 	require.Nil(t, val)
 
 	store.Write(cid, []byte("aaak"), []byte("aaav"))
@@ -72,7 +73,7 @@ func TestCache(t *testing.T) {
 	require.Nil(t, val)
 
 	// Test read-your-writes.
-	cache.Write(cid, []byte("cache-only-key"), []byte("cache-only-value"), 1)
+	cache.Write(cid, []byte("cache-only-key"), []byte("cache-only-value"), 0)
 	val, err = cache.Get(cid, []byte("cache-only-key"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("cache-only-value"), val)
@@ -109,12 +110,29 @@ func TestCache(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, commit2, commit3)
 
-	// Test reset.
-	cache.Reset()
-	val, err = cache.Get(cid, []byte("cache-only-key"))
+	// Set batch.
+	groupID0 := crypto.Hash([]byte{1, 2, 3})
+	cache.SetBatchIndexGroup(0, groupID0)
+	groupID1 := crypto.Hash([]byte{4, 5, 6})
+	cache.SetBatchIndexGroup(1, groupID1)
+
+	// Persist write set for index 0.
+	err = cache.PersistGroupState(groupID0)
 	require.NoError(t, err)
+	val, err = store.Get(cid, []byte("both-key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("both-store-value"), val)
+	val, err = store.Get(cid, []byte("cache-only-key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("cache-only-value"), val)
+
+	// Persist write set for index 1.
+	err = cache.PersistGroupState(groupID1)
+	require.NoError(t, err)
+	val, err = store.Get(cid, []byte("both-key"))
+	require.Equal(t, sql.ErrNoRows, err)
 	require.Nil(t, val)
-	finalCommit, err := cache.Commitment(cid)
+	val, err = store.Get(cid, []byte("cache-only-key"))
 	require.NoError(t, err)
-	require.Equal(t, commit1, finalCommit)
+	require.Equal(t, []byte("cache-only-value"), val)
 }
