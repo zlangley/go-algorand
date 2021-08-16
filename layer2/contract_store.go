@@ -3,7 +3,7 @@ package layer2
 import (
 	"bytes"
 	"database/sql"
-	"fmt"
+
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/protocol"
@@ -45,7 +45,7 @@ type StableStore struct {
 
 type SpeculationStore struct {
 	backingStore *StableStore
-	db    db.Accessor
+	db           db.Accessor
 }
 
 func NewStableStore(inMemory bool) (*StableStore, error) {
@@ -60,7 +60,7 @@ func NewStableStore(inMemory bool) (*StableStore, error) {
 	return &StableStore{db: dba}, nil
 }
 
-func (s *StableStore) Get(cid ContractID, key []byte) []byte {
+func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	row := s.db.Handle.QueryRow(`
 		SELECT
 		    value
@@ -72,23 +72,29 @@ func (s *StableStore) Get(cid ContractID, key []byte) []byte {
 			1
 	`, cid.String(), key)
 
+	if err := row.Err(); err != nil {
+		return nil, err
+	}
+
 	var value []byte
 	err := row.Scan(&value)
 	if err == sql.ErrNoRows {
-		return nil
+		return nil, nil
+	} else if err != nil {
+		return nil, err
 	}
-	return value
+	return value, nil
 }
 
-func (s *StableStore) Write(cid ContractID, key []byte, val []byte) {
+func (s *StableStore) Write(cid ContractID, key []byte, val []byte) error {
 	if val == nil {
-		s.db.Handle.Exec(`
+		_, err := s.db.Handle.Exec(`
 			DELETE FROM
 		        contract_key_value_pairs
     		WHERE
     		    contract_id = $1 AND key = $2
 		`, cid.String(), key)
-		return
+		return err
 	}
 	_, err := s.db.Handle.Exec(`
 		INSERT INTO contract_key_value_pairs(contract_id, key, value)
@@ -96,10 +102,10 @@ func (s *StableStore) Write(cid ContractID, key []byte, val []byte) {
 		ON CONFLICT(contract_id, key)
 		DO UPDATE SET value=$3;
 	`, cid.String(), key, val)
-	fmt.Println(err)
+	return err
 }
 
-func (s *StableStore) Select(cid ContractID) []KeyValuePair {
+func (s *StableStore) Select(cid ContractID) ([]KeyValuePair, error) {
 	rows, err := s.db.Handle.Query(`
 		SELECT
 			key, value
@@ -110,10 +116,12 @@ func (s *StableStore) Select(cid ContractID) []KeyValuePair {
 		ORDER BY
 			key ASC
     `, cid.String())
-	fmt.Println(err)
-	return resultSetToKVPairs(rows)
-}
 
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	return resultSetToKVPairs(rows), nil
+}
 
 func (s *StableStore) Speculation() (*SpeculationStore, error) {
 	dba, err := db.MakeAccessor("layer2speculation.sqlite", false, true)
@@ -129,7 +137,7 @@ func (s *StableStore) Speculation() (*SpeculationStore, error) {
 	return spec, nil
 }
 
-func (s *SpeculationStore) Get(cid ContractID, key []byte) []byte {
+func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	row := s.db.Handle.QueryRow(`
 		SELECT
 		    value
@@ -143,12 +151,22 @@ func (s *SpeculationStore) Get(cid ContractID, key []byte) []byte {
 			1
 	`, cid.String(), key)
 
+	if err := row.Err(); err != nil {
+		panic(err)
+	}
+
 	var value []byte
 	err := row.Scan(&value)
 	if err == sql.ErrNoRows {
-		value = s.backingStore.Get(cid, key)
+		value, err = s.backingStore.Get(cid, key)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+	} else if err != nil {
+		// In-memory store error should never happen.
+		panic(err)
 	}
-	return value
+	return value, nil
 }
 
 func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, seqno int) {
@@ -158,10 +176,12 @@ func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, seqno i
 		ON CONFLICT(contract_id, key, seqno)
 		DO UPDATE SET value=$3;
 	`, cid.String(), key, val, seqno)
-	fmt.Println(err)
+	if err != nil {
+		panic(err)
+	}
 }
 
-func (s *SpeculationStore) Commitment(cid ContractID) crypto.Digest {
+func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 	rows, err := s.db.Handle.Query(`
 		SELECT
 			a.key, a.value
@@ -177,18 +197,25 @@ func (s *SpeculationStore) Commitment(cid ContractID) crypto.Digest {
 		ORDER BY
 			a.key ASC
     `, cid.String())
-	fmt.Println(err)
+	if err != nil {
+		panic(err)
+	}
 
 	cachePairs := resultSetToKVPairs(rows)
-	storePairs := s.backingStore.Select(cid)
+	storePairs, err := s.backingStore.Select(cid)
+	if err != nil {
+		return crypto.Digest{}, err
+	}
 	merged := mergeKeyValuePairs(storePairs, cachePairs)
 	encoded := protocol.EncodeJSON(merged)
-	return crypto.Hash(encoded)
+	return crypto.Hash(encoded), nil
 }
 
 func (s *SpeculationStore) Reset() {
 	_, err := s.db.Handle.Exec("DELETE FROM speculative_contract_key_value_pairs")
-	fmt.Println(err)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func mergeKeyValuePairs(storePairs, cachePairs []KeyValuePair) []KeyValuePair {

@@ -12,29 +12,36 @@ func TestStore(t *testing.T) {
 	require.NoError(t, err)
 
 	cid := ContractID(crypto.Hash([]byte("test")))
-	ret := store.Select(cid)
+	ret, err := store.Select(cid)
+	require.NoError(t, err)
 	require.Empty(t, ret)
 
 	store.Write(cid, []byte("bbbk"), []byte("bbbv"))
-	val := store.Get(cid, []byte("bbbk"))
+	val, err := store.Get(cid, []byte("bbbk"))
+	require.NoError(t, err)
 	require.Equal(t, val, []byte("bbbv"))
 
 	store.Write(cid, []byte("ccck"), []byte("cccv"))
-	val = store.Get(cid, []byte("ccck"))
+	val, err = store.Get(cid, []byte("ccck"))
+	require.NoError(t, err)
 	require.Equal(t, val, []byte("cccv"))
 
-	store.Write(cid, []byte("dddk"), []byte("dddv"))
-	store.Write(cid, []byte("dddk"), nil)
-	require.Nil(t, store.Get(cid, []byte("dddk")))
+	require.NoError(t, store.Write(cid, []byte("dddk"), []byte("dddv")))
+	require.NoError(t, store.Write(cid, []byte("dddk"), nil))
+	val, err = store.Get(cid, []byte("dddk"))
+	require.NoError(t, err)
+	require.Nil(t, val)
 
 	store.Write(cid, []byte("aaak"), []byte("aaav"))
-	val = store.Get(cid, []byte("aaak"))
+	val, err = store.Get(cid, []byte("aaak"))
+	require.NoError(t, err)
 	require.Equal(t, val, []byte("aaav"))
 
 	cid2 := ContractID(crypto.Hash([]byte("test2")))
 	store.Write(cid2, []byte("foo"), []byte("bar2"))
 
-	ret = store.Select(cid)
+	ret, err = store.Select(cid)
+	require.NoError(t, err)
 	require.Equal(t, 3, len(ret))
 	require.Equal(t, []byte("aaak"), ret[0].Key)
 	require.Equal(t, []byte("aaav"), ret[0].Value)
@@ -56,39 +63,58 @@ func TestCache(t *testing.T) {
 	store.Write(cid, []byte("store-only-key"), []byte("store-only-value"))
 	store.Write(cid, []byte("both-key"), []byte("both-store-value"))
 
-	commit1 := cache.Commitment(cid)
+	commit1, err := cache.Commitment(cid)
+	require.NoError(t, err)
 
 	// Test absence of key.
-	require.Nil(t, cache.Get(cid, []byte("cache-only-key")))
+	val, err := cache.Get(cid, []byte("cache-only-key"))
+	require.NoError(t, err)
+	require.Nil(t, val)
 
 	// Test read-your-writes.
 	cache.Write(cid, []byte("cache-only-key"), []byte("cache-only-value"), 1)
-	require.Equal(t, []byte("cache-only-value"), cache.Get(cid, []byte("cache-only-key")))
+	val, err = cache.Get(cid, []byte("cache-only-key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("cache-only-value"), val)
 
 	// Test commitment changed.
-	commit2 := cache.Commitment(cid)
+	commit2, err := cache.Commitment(cid)
+	require.NoError(t, err)
 	require.NotEqual(t, commit1, commit2)
 
 	// Test delegation to underlying store for missing cache key.
-	require.Equal(t, []byte("both-store-value"), cache.Get(cid, []byte("both-key")))
+	val, err = cache.Get(cid, []byte("both-key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("both-store-value"), val)
 
 	// Test overriding underlying store key.
 	cache.Write(cid, []byte("both-key"), []byte("both-cache-value"), 1)
-	require.Equal(t, []byte("both-cache-value"), cache.Get(cid, []byte("both-key")))
+	val, err = cache.Get(cid, []byte("both-key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("both-cache-value"), val)
 
 	// Test delete store key in cache.
 	cache.Write(cid, []byte("both-key"), nil, 1)
-	require.Nil(t, cache.Get(cid, []byte("both-key")))
+	val, err = cache.Get(cid, []byte("both-key"))
+	require.NoError(t, err)
+	require.Nil(t, val)
 
 	// Test value remains in persistent store.
-	require.Equal(t, []byte("both-store-value"), store.Get(cid, []byte("both-key")))
+	val, err = store.Get(cid, []byte("both-key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("both-store-value"), val)
 
 	// Test commitment changed again.
-	commit3 := cache.Commitment(cid)
+	commit3, err := cache.Commitment(cid)
+	require.NoError(t, err)
 	require.NotEqual(t, commit2, commit3)
 
 	// Test reset.
 	cache.Reset()
-	require.Nil(t, cache.Get(cid, []byte("cache-only-key")))
-	require.Equal(t, commit1, cache.Commitment(cid))
+	val, err = cache.Get(cid, []byte("cache-only-key"))
+	require.NoError(t, err)
+	require.Nil(t, val)
+	finalCommit, err := cache.Commitment(cid)
+	require.NoError(t, err)
+	require.Equal(t, commit1, finalCommit)
 }
