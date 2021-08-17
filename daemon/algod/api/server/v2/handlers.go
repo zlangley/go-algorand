@@ -1159,7 +1159,9 @@ func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key 
 	if err != nil {
 		return internalError(ctx, err, "failed to connect to stable storage", v2.Log)
 	}
-	return ctx.String(http.StatusOK, string(val))
+	return ctx.JSON(http.StatusOK, generated.ContractStoreGetResponse{
+		Value: string(val),
+	})
 }
 
 // (POST /v2/speculation/write/<contractId>/<key>)

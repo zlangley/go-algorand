@@ -532,6 +532,11 @@ type CompileResponse struct {
 	Result string `json:"result"`
 }
 
+// ContractStoreGetResponse defines model for ContractStoreGetResponse.
+type ContractStoreGetResponse struct {
+	Value string `json:"value"`
+}
+
 // DryrunResponse defines model for DryrunResponse.
 type DryrunResponse struct {
 	Error string `json:"error"`

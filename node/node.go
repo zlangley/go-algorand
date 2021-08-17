@@ -523,8 +523,6 @@ func (node *AlgorandFullNode) DestroySpeculationLedger(token string) {
 }
 
 func (node *AlgorandFullNode) OffChainStore() (*layer2.StableStore, error) {
-	node.specMu.Lock()
-	defer node.specMu.Unlock()
 	if node.offChainStore == nil {
 		var err error
 		node.offChainStore, err = layer2.NewStableStore(false)
@@ -536,8 +534,6 @@ func (node *AlgorandFullNode) OffChainStore() (*layer2.StableStore, error) {
 }
 
 func (node *AlgorandFullNode) OffChainSpeculationStore() (*layer2.SpeculationStore, error) {
-	node.specMu.Lock()
-	defer node.specMu.Unlock()
 	if node.offChainSpeculationStore == nil {
 		store, err := node.OffChainStore()
 		if err != nil {

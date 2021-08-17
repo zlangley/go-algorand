@@ -1190,7 +1190,7 @@
         ],
         "responses": {
           "200": {
-            "type": "string"
+            "$ref": "#/responses/ContractStoreGetResponse"
           }
         }
       }
@@ -2410,6 +2410,17 @@
             "description": "Optional certificate object. This is only included when the format is set to message pack.",
             "type": "object",
             "x-algorand-format": "BlockCertificate"
+          }
+        }
+      }
+    },
+    "ContractStoreGetResponse": {
+      "schema": {
+        "type": "object",
+        "required": ["value"],
+        "properties": {
+          "value": {
+            "type": "string"
           }
         }
       }
