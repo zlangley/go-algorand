@@ -1170,7 +1170,7 @@
         }
       ]
     },
-    "/v2/speculation/read/{contract_id}/{key}": {
+    "/v2/speculation/get/{contract_id}/{key}": {
       "get": {
         "description": "Reads from the (speculative) contract storage",
         "operationId": "ContractStorageGet",
@@ -1191,6 +1191,31 @@
         "responses": {
           "200": {
             "$ref": "#/responses/ContractStoreGetResponse"
+          }
+        }
+      }
+    },
+    "/v2/speculation/get_with_prefix/{contract_id}/{key_prefix}": {
+      "get": {
+        "description": "Reads from the (speculative) contract storage",
+        "operationId": "ContractStorageGetWithPrefix",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "contract_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "name": "key_prefix",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/GetWithPrefixResponse"
           }
         }
       }
@@ -1216,10 +1241,8 @@
             "name": "value",
             "in": "body",
             "required": true,
-            "schema": {
-              "type": "string",
-              "format": "binary"
-            }
+            "type": "string",
+            "format": "byte"
           }
         ],
         "responses": {
@@ -1789,6 +1812,21 @@
         "new_commitment": {
           "type": "string",
           "format": "byte"
+        }
+      }
+    },
+    "KeyValue": {
+      "type": "object",
+      "required": [
+        "key",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
         }
       }
     },
@@ -2410,6 +2448,20 @@
             "description": "Optional certificate object. This is only included when the format is set to message pack.",
             "type": "object",
             "x-algorand-format": "BlockCertificate"
+          }
+        }
+      }
+    },
+    "GetWithPrefixResponse": {
+      "schema": {
+        "type": "object",
+        "required": ["key_values"],
+        "properties": {
+          "key_values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/KeyValue"
+            }
           }
         }
       }

@@ -396,6 +396,26 @@
         },
         "description": "DryrunResponse contains per-txn debug information from a dryrun."
       },
+      "GetWithPrefixResponse": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "properties": {
+                "key_values": {
+                  "items": {
+                    "$ref": "#/components/schemas/KeyValue"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "key_values"
+              ],
+              "type": "object"
+            }
+          }
+        }
+      },
       "NodeStatusResponse": {
         "content": {
           "application/json": {
@@ -1502,6 +1522,21 @@
           },
           "value": {
             "$ref": "#/components/schemas/EvalDelta"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "KeyValue": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
           }
         },
         "required": [
@@ -2985,7 +3020,7 @@
         ]
       }
     },
-    "/v2/speculation/read/{contract_id}/{key}": {
+    "/v2/speculation/get/{contract_id}/{key}": {
       "get": {
         "description": "Reads from the (speculative) contract storage",
         "operationId": "ContractStorageGet",
@@ -3028,6 +3063,52 @@
         }
       }
     },
+    "/v2/speculation/get_with_prefix/{contract_id}/{key_prefix}": {
+      "get": {
+        "description": "Reads from the (speculative) contract storage",
+        "operationId": "ContractStorageGetWithPrefix",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key_prefix",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "key_values": {
+                      "items": {
+                        "$ref": "#/components/schemas/KeyValue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "key_values"
+                  ],
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/speculation/write/{contract_id}/{key}": {
       "post": {
         "description": "Writes to the (speculative) contract storage",
@@ -3052,12 +3133,7 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
-              "schema": {
-                "format": "binary",
-                "type": "string"
-              }
-            }
+            "application/json": {}
           },
           "required": true
         },

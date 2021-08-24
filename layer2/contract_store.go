@@ -3,6 +3,7 @@ package layer2
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	"github.com/algorand/go-algorand/crypto"
 	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/protocol"
@@ -42,7 +43,7 @@ func (cid ContractID) String() string {
 	return basics.Address(cid).String()
 }
 
-type kvPair struct {
+type KeyValue struct {
 	Key   []byte `json:"key""`
 	Value []byte `json:"value"`
 }
@@ -78,22 +79,22 @@ func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	return value, err
 }
 
-func (s *StableStore) kvPairs(cid ContractID) ([]kvPair, error) {
+func (s *StableStore) getWithPrefix(cid ContractID, keyPrefix []byte) ([]KeyValue, error) {
 	rows, err := s.db.Handle.Query(`
 		SELECT
 			key, value
 		FROM
 			contract_kv_pairs
 		WHERE
-			contract_id = $1
+			contract_id = $1 AND key LIKE $2
 		ORDER BY
 			key ASC
-	`, cid.String())
+	`, cid.String(), string(keyPrefix) + "%")
 
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
-	return resultSetToKVPairs(rows), nil
+	return parseKeyValues(rows), nil
 }
 
 type SpeculationStore struct {
@@ -189,7 +190,7 @@ func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 	return nil
 }
 
-func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
+func (s *SpeculationStore) GetWithPrefix(cid ContractID, keyPrefix []byte) ([]KeyValue, error) {
 	// Since the databases are attached, we could get the latest key-value pairs
 	// with a JOIN, but it seems more complicated than just manually merging two
 	// separate queries (especially since sqlite3 does not support full outer joins).
@@ -205,29 +206,37 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 				a.key = b.key AND 
 				a.batch_idx < b.batch_idx
 		WHERE
-			a.contract_id = $1 AND b.batch_idx IS NULL
+			a.contract_id = $1 AND b.batch_idx IS NULL AND a.key LIKE $2
 		ORDER BY
 			a.key ASC
-	`, cid.String())
+	`, cid.String(), string(keyPrefix) + "%")
 
 	// In-memory db should never fail.
 	if err != nil {
 		panic(err)
 	}
 
-	cachePairs := resultSetToKVPairs(rows)
-	storePairs, err := s.backingStore.kvPairs(cid)
+	cachePairs := parseKeyValues(rows)
+	storePairs, err := s.backingStore.getWithPrefix(cid, keyPrefix)
+	if err != nil {
+		return nil, err
+	}
+	return mergeKeyValuePairs(storePairs, cachePairs), nil
+}
+
+func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
+	kvs, err := s.GetWithPrefix(cid, []byte{})
+	fmt.Println(kvs)
 	if err != nil {
 		return crypto.Digest{}, err
 	}
-	merged := mergeKeyValuePairs(storePairs, cachePairs)
-	encoded := protocol.EncodeJSON(merged)
+	encoded := protocol.EncodeJSON(kvs)
 	return crypto.Hash(encoded), nil
 }
 
-func mergeKeyValuePairs(storePairs, cachePairs []kvPair) []kvPair {
+func mergeKeyValuePairs(storePairs, cachePairs []KeyValue) []KeyValue {
 	var cidx, sidx int
-	var merged []kvPair
+	var merged []KeyValue
 	for cidx < len(cachePairs) && sidx < len(storePairs) {
 		ckv := cachePairs[cidx]
 		skv := storePairs[sidx]
@@ -255,12 +264,12 @@ func mergeKeyValuePairs(storePairs, cachePairs []kvPair) []kvPair {
 	return merged
 }
 
-func resultSetToKVPairs(rows *sql.Rows) []kvPair {
-	var kvs []kvPair
+func parseKeyValues(rows *sql.Rows) []KeyValue {
+	var kvs []KeyValue
 	for rows.Next() {
 		var key, value []byte
 		rows.Scan(&key, &value)
-		kvs = append(kvs, kvPair{key, value})
+		kvs = append(kvs, KeyValue{key, value})
 	}
 	return kvs
 }

@@ -18,6 +18,7 @@ package v2
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -1156,12 +1157,32 @@ func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key 
 		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
 	}
 	val, err := spec.Get(layer2.ContractID(addr), []byte(key))
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return internalError(ctx, err, "failed to connect to stable storage", v2.Log)
 	}
 	return ctx.JSON(http.StatusOK, generated.ContractStoreGetResponse{
 		Value: string(val),
 	})
+}
+
+func (v2 *Handlers) ContractStorageGetWithPrefix(ctx echo.Context, contractId string, keyPrefix string) error {
+	spec, err := v2.Node.OffChainSpeculationStore()
+	if err != nil {
+		return internalError(ctx, err, "failed to connect to stable storage", v2.Log)
+	}
+	addr, err := basics.UnmarshalChecksumAddress(contractId)
+	if err != nil {
+		return badRequest(ctx, err, errFailedToParseAddress, v2.Log)
+	}
+	keyValues, err := spec.GetWithPrefix(layer2.ContractID(addr), []byte(keyPrefix))
+	if err != nil {
+		return internalError(ctx, err, "failed to fetch from stable storage", v2.Log)
+	}
+	kvs := make([]generated.KeyValue, len(keyValues))
+	for i := range keyValues {
+		kvs[i] = generated.KeyValue{Key: string(keyValues[i].Key), Value: string(keyValues[i].Value)}
+	}
+	return ctx.JSON(http.StatusOK, generated.GetWithPrefixResponse{KeyValues: kvs})
 }
 
 // (POST /v2/speculation/write/<contractId>/<key>)

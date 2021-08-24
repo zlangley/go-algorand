@@ -385,6 +385,12 @@ type EvalDeltaKeyValue struct {
 	Value EvalDelta `json:"value"`
 }
 
+// KeyValue defines model for KeyValue.
+type KeyValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 // StateDelta defines model for StateDelta.
 type StateDelta []EvalDeltaKeyValue
 
@@ -544,6 +550,11 @@ type DryrunResponse struct {
 	// Protocol version is the protocol version Dryrun was operated under.
 	ProtocolVersion string            `json:"protocol-version"`
 	Txns            []DryrunTxnResult `json:"txns"`
+}
+
+// GetWithPrefixResponse defines model for GetWithPrefixResponse.
+type GetWithPrefixResponse struct {
+	KeyValues []KeyValue `json:"key_values"`
 }
 
 // NodeStatusResponse defines model for NodeStatusResponse.
@@ -785,7 +796,7 @@ type ContractBatchExecuteParams struct {
 }
 
 // ContractStorageWriteJSONBody defines parameters for ContractStorageWrite.
-type ContractStorageWriteJSONBody string
+type ContractStorageWriteJSONBody interface{}
 
 // TealDryrunJSONBody defines parameters for TealDryrun.
 type TealDryrunJSONBody DryrunRequest
