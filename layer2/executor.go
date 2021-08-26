@@ -15,19 +15,20 @@ import (
 	"strconv"
 )
 
-type invocationKind int8
+type cmdType int8
 
 const (
-	Init invocationKind = iota
+	Init cmdType = iota
 	Call
 )
 
-type Invocation struct {
-	kind       invocationKind
-	name       string
-	runner     kalgo.Runner
-	contractID basics.Address
-	sender     basics.Address
+type kalgoCmd interface {
+	Run(env kalgo.Env) ([]byte, error)
+}
+
+type VMCommand struct {
+	callType cmdType
+	kalgoCmd
 }
 
 func GetContractPreID(sender basics.Address, source string) crypto.Digest {
@@ -35,11 +36,10 @@ func GetContractPreID(sender basics.Address, source string) crypto.Digest {
 	return crypto.Hash([]byte(sender.GetUserAddress() + sourceHash.String()))
 }
 
-func NewInitInvocation(name, source string, contractAddr, sender basics.Address) *Invocation {
-	return &Invocation{
-		kind: Init,
-		name: name,
-		runner: &kalgo.InitCmd{
+func NewInitVMCommand(name, source string, contractAddr, sender basics.Address) *VMCommand {
+	return &VMCommand{
+		callType: Init,
+		kalgoCmd: &kalgo.InitCmd{
 			Cmd: kalgo.Cmd{
 				Address: contractAddr,
 				Name:    name,
@@ -47,16 +47,13 @@ func NewInitInvocation(name, source string, contractAddr, sender basics.Address)
 			},
 			Source: source,
 		},
-		contractID: contractAddr,
-		sender:     sender,
 	}
 }
 
-func NewCallInvocation(name, function, args string, addr, sender basics.Address) *Invocation {
-	return &Invocation{
-		kind: Call,
-		name: name,
-		runner: &kalgo.CallCmd{
+func NewCallVMCommand(name, function, args string, addr, sender basics.Address) *VMCommand {
+	return &VMCommand{
+		callType: Call,
+		kalgoCmd: &kalgo.CallCmd{
 			Cmd: kalgo.Cmd{
 				Address: addr,
 				Name:    name,
@@ -65,7 +62,6 @@ func NewCallInvocation(name, function, args string, addr, sender basics.Address)
 			Function: function,
 			Args:     args,
 		},
-		sender:     sender,
 	}
 }
 
@@ -91,13 +87,13 @@ func NewExecutor(ledger *data.SpeculationLedger, kenv kalgo.Env) *Executor {
 	}
 }
 
-// Submit executes the given Invocation and commits to the speculative ledger.
+// Submit executes the given VMCommand and commits to the speculative ledger.
 //
 // If successful, the effects transactions from the execution are applied to
 // the speculative ledger, the speculative database is updated.
-func (ex *Executor) Submit(item *Invocation, prof *util.Profiler) error {
+func (ex *Executor) Submit(cmd *VMCommand, prof *util.Profiler) error {
 	prof.Start("kalgo")
-	rawout, err := item.runner.Run(ex.kenv)
+	rawout, err := cmd.Run(ex.kenv)
 	if err != nil {
 		return fmt.Errorf("running kalgo: %w", err)
 	}
@@ -119,8 +115,8 @@ func (ex *Executor) Submit(item *Invocation, prof *util.Profiler) error {
 		contractAddr := GetContractAddress(contractID)
 
 		var txn transactions.Transaction
-		if item.kind == Init {
-			txn, err = CommitmentAppOptInTxn(contractAddr, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest() + 1000, ex.ledger.GenesisHash())
+		if cmd.callType == Init {
+			txn, err = CommitmentAppOptInTxn(contractAddr, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest()+1000, ex.ledger.GenesisHash())
 		} else {
 			txn, err = CommitmentAppCallTxn(contractAddr, commit.PreviousCommitment, commit.NewCommitment, ex.ledger.Latest(), ex.ledger.Latest()+1000, ex.ledger.GenesisHash())
 		}

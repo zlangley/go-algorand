@@ -232,7 +232,10 @@ func (v2 *Handlers) GetBlock(ctx echo.Context, round uint64, params generated.Ge
 	return ctx.Blob(http.StatusOK, contentType, data)
 }
 
-// Create a speculation context starting at the given block.
+const KalgoPrefixEnvKey = "KALGO_PREFIX"
+const KalgoHomeEnvKey = "KALGO_HOME"
+
+// CreateSpeculation creates a speculation context starting at the given block.
 // (POST /v2/blocks/{round}/speculation)
 func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 	prof = util.NewProfiler()
@@ -247,7 +250,7 @@ func (v2 *Handlers) CreateSpeculation(ctx echo.Context, round uint64) error {
 	}
 
 	prof.Start(kCopyOnWrite)
-	current := filepath.Join(os.Getenv("KALGO_PREFIX"), "current")
+	current := filepath.Join(os.Getenv(KalgoPrefixEnvKey), "current")
 	if _, err = os.Stat(current); os.IsNotExist(err) {
 		err = os.MkdirAll(current, 0777)
 		if err != nil {
@@ -269,7 +272,8 @@ func kalgoEnv(req *http.Request, speculation string) kalgo.Env {
 		AlgodAddress:     req.Context().Value(http.LocalAddrContextKey).(net.Addr).String(),
 		AlgodToken:       req.Header.Get("X-Algo-API-Token"),
 		SpeculationToken: speculation,
-		SourcePrefix:     filepath.Join(os.Getenv("KALGO_PREFIX"), speculation, "current"),
+		SourcePrefix:     filepath.Join(os.Getenv(KalgoPrefixEnvKey), speculation, "current"),
+		KalgoHome:        os.Getenv(KalgoHomeEnvKey),
 	}
 }
 
@@ -292,7 +296,7 @@ func parseOptionalAddress(s *string) (addr basics.Address, err error) {
 	return
 }
 
-func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
+func decodeJSONLayer2ExecutionBatch(data []byte) ([]*layer2.VMCommand, error) {
 	// FIXME[zach]: I haven't been able to get go-swagger to generate the right interface for a
 	// heterogeneous list (perhaps we are using an old version?). The parsing here is kind of gnarly,
 	// but is intended to somewhat mirror what go-swagger supposedly expects. We decode the data twice.
@@ -308,7 +312,7 @@ func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 	if err := decode(protocol.JSONHandle, data, &rawCmds); err != nil {
 		return nil, err
 	}
-	items := make([]*layer2.Invocation, len(rawCmds))
+	items := make([]*layer2.VMCommand, len(rawCmds))
 	for i, discrim := range discrims {
 		switch discrim.Command {
 		case "init":
@@ -320,6 +324,7 @@ func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 			if err != nil {
 				return nil, err
 			}
+			// We allow overriding the contract address if supplied.
 			var contractAddr basics.Address
 			if init.Address != nil {
 				contractAddr, err = basics.UnmarshalChecksumAddress(*init.Address)
@@ -330,7 +335,7 @@ func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 				contractPreID := layer2.GetContractPreID(sender, init.Source)
 				contractAddr = layer2.GetContractAddress(contractPreID)
 			}
-			items[i] = layer2.NewInitInvocation(init.Id, init.Source, contractAddr, sender)
+			items[i] = layer2.NewInitVMCommand(init.Id, init.Source, contractAddr, sender)
 		case "call":
 			var call generated.ContractCall
 			if err := decode(protocol.JSONHandle, rawCmds[i], &call); err != nil {
@@ -344,7 +349,7 @@ func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 			if err != nil {
 				return nil, err
 			}
-			items[i] = layer2.NewCallInvocation(call.Id, call.Function, call.Args, addr, sender)
+			items[i] = layer2.NewCallVMCommand(call.Id, call.Function, call.Args, addr, sender)
 		default:
 			return nil, errors.New(fmt.Sprintf("item in batch missing command descriminator (index %d)", i))
 		}
@@ -352,7 +357,7 @@ func decodeBatch(data []byte) ([]*layer2.Invocation, error) {
 	return items, nil
 }
 
-// Calls a function on a previously initialized contract.
+// ContractBatchExecute executes a batch of contract inits/calls.
 // (POST /v2/contracts/batch)
 func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
 	prof = util.NewProfiler()
@@ -375,7 +380,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	buf.ReadFrom(req.Body)
 	data := buf.Bytes()
 
-	batch, err := decodeBatch(data)
+	batch, err := decodeJSONLayer2ExecutionBatch(data)
 	if err != nil {
 		return badRequest(ctx, err, err.Error(), v2.Log)
 	}
@@ -451,7 +456,7 @@ func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, o
 	defer prof.Start(kKalgoTotal)
 	if operation == "delete" {
 		v2.Node.DestroySpeculationLedger(speculation)
-		os.RemoveAll(filepath.Join(os.Getenv("KALGO_PREFIX"), speculation))
+		os.RemoveAll(filepath.Join(os.Getenv(KalgoPrefixEnvKey), speculation))
 		// XXX: return something more reasonable
 		return ctx.JSON(http.StatusOK, generated.SpeculationResponse{
 			Base:  0,

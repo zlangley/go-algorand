@@ -18,10 +18,7 @@ type Env struct {
 	AlgodToken       string
 	SpeculationToken string
 	SourcePrefix     string
-}
-
-type Runner interface {
-	Run(env Env) ([]byte, error)
+	KalgoHome string
 }
 
 func saveToDisk(name, source, root string) (*os.File, error) {
@@ -98,9 +95,10 @@ type Output struct {
 	CommitmentsRaw string `xml:"commitments"`
 }
 
+
 func command(env Env, subcmd string, args ...string) ([]byte, error) {
 	cmd := exec.Command("./kalgo", append([]string{subcmd}, args...)...)
-	cmd.Dir = os.Getenv("KALGO_HOME")
+	cmd.Dir = env.KalgoHome
 	cmd.Env = append(os.Environ(),
 		"ALGOD_ADDRESS="+env.AlgodAddress,
 		"ALGOD_TOKEN="+env.AlgodToken,
