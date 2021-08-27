@@ -1,0 +1,33 @@
+setup: []
+
+test:
+  - command: init
+    id: bls
+    source: >
+      (define-constant signature-verification-failed u1)
+      (define-public (bls-sign (sk (buff 64)) (msg (buff 100)))
+       (begin
+        (let ((dst "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_")
+              (hash_msg (bls12-381-hash-to-curve-g2 msg dst))
+              (sig (bls12-381-g2-mul hash_msg sk))))
+        (ok "PASS: bls-sign")))
+      (define-public (bls-sig-verify (pk (buff 288)) (msg (buff 100)) (sig (buff 576)))
+       (begin
+        (let ((g1-negone (bls12-381-g1-get-point "-1"))
+              (dst "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_")
+              (hash_msg (bls12-381-hash-to-curve-g2 msg dst))
+              (lhs (concat g1-negone sig))
+              (rhs (concat pk hash_msg))
+              (inputs (concat lhs rhs))
+              (output (bls12-381-pairing inputs)))
+         (asserts! output (err signature-verification-failed)))
+        (ok "PASS: bls-sig-verify")))
+      (define-public (test-sig (msg (buff 100)))
+       (begin
+        (let (
+              (sk "6fc5ed106971622c8620f73425ee9e6a7654fdb7bcdb477c167419bfa6e86e55")
+              (pk "11f1a17ceb4c79959929485616d5f2d8c2a56a2d0b9fbf85f66ec830e9f11284d86bdbc16753c636770668a178ccc5cc182d94b169d0c96c64e2aa7fdc22884d92e9813b225970d64765283c8ca1f9081076c63dca14896253bbbdd988150cfa1227cff7bc3fb2b2914ef700ff4d12a31a7e2a67ac544208f9aad8eb4662669ce46eda2d48653c3bd1f23c2e65357a23")
+              (sig (bls-sign sk msg))
+              (valid_sig (bls-sig-verify pk msg sig)))
+         (asserts! valid_sig (err signature-verification-failed)))))
+      (bls-sig-verify "11f1a17ceb4c79959929485616d5f2d8c2a56a2d0b9fbf85f66ec830e9f11284d86bdbc16753c636770668a178ccc5cc182d94b169d0c96c64e2aa7fdc22884d92e9813b225970d64765283c8ca1f9081076c63dca14896253bbbdd988150cfa1227cff7bc3fb2b2914ef700ff4d12a31a7e2a67ac544208f9aad8eb4662669ce46eda2d48653c3bd1f23c2e65357a23" "this is a message" "0f9cc1b9609c5c43953e3e5ef237be244cbef5bb9d497295a5e8c9b010b80bc18e122ac1757b05150cd18504071ca92b134252e58e4d19a0b3e162f821c7aa9bfc6099e718db4cea446cda342c5b1bf66a955870da97f77631d04c4121d468b20d4ec7e089314c56356ed5345dadc691557da90c919c494dee492b64fa1c37f7fe67f6b9a1f1dde6d4a2f0c50690fd4d16cd99c5e3a47b56aa4405ad8b74dcbe54045ccad2da7b28a6c79582c3fdb4161995a872f075c9a566c7d3422a80362a188036c0a23798f8b3537b7a436562a585c39d43f3dd0e46ee7772db08b24dbcfc4b80d5aba66c671166d1e5eb3d396214f2ee35191a88f8ed675193a9642e45c007886b50aa0edf2b1a177ee7b57979ef2c7501da03d3dc96f42477049b871b")

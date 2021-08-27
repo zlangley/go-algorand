@@ -1,0 +1,13 @@
+setup:
+  - command: init
+    id: do-nothing
+    address: CI3RIBZL7ROPGIXTGIJGOITDCLA42TYSTUJSR44A3WCTLEP2ZOFAR2PZAQ
+    source: >
+      (define-public (main) (ok 1))
+
+test:
+  - command: call
+    id: do-nothing
+    address: CI3RIBZL7ROPGIXTGIJGOITDCLA42TYSTUJSR44A3WCTLEP2ZOFAR2PZAQ
+    function: main
+    args: ""

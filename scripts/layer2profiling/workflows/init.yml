@@ -1,0 +1,6 @@
+setup: []
+
+test:
+  - command: init
+    id: init
+    source: (define-public (do-nothing) (ok 1))

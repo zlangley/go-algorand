@@ -1,0 +1,33 @@
+setup: []
+
+test:
+  - command: init
+    id: init-1
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-2
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-3
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-4
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-5
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-6
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-7
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-8
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-9
+    source: (define-public (do-nothing) (ok 1))
+  - command: init
+    id: init-10
+    source: (define-public (do-nothing) (ok 1))

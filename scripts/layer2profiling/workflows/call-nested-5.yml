@@ -1,0 +1,26 @@
+setup:
+  - command: init
+    id: do-nothing-1
+    source: "(define-public (main) (ok 1))"
+
+  - command: init
+    id: do-nothing-2
+    source: "(define-public (main) (contract-call? .do-nothing-1 main))"
+
+  - command: init
+    id: do-nothing-3
+    source: "(define-public (main) (contract-call? .do-nothing-2 main))"
+
+  - command: init
+    id: do-nothing-4
+    source: "(define-public (main) (contract-call? .do-nothing-3 main))"
+
+  - command: init
+    id: do-nothing-5
+    source: "(define-public (main) (contract-call? .do-nothing-4 main))"
+
+test:
+  - command: call
+    id: do-nothing-5
+    function: main
+    args: ""

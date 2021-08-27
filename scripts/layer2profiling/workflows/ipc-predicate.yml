@@ -1,0 +1,25 @@
+setup: []
+
+test:
+  - command: init
+    id: on-chain-assert
+    source: >
+      (define-on-chain-predicate (has-balance-predicate (sender address) (amount uint64))
+        (let ((balance (get-account-info-panic amount sender)))
+          (> balance amount)))
+
+      (define-public (has-balance (addr address) (amount uint64))
+        (begin
+          (on-chain-asserts! (has-balance-predicate addr amount) (err 10))
+          (ok 1)))
+
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)
+      (has-balance @3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1)

@@ -1,0 +1,18 @@
+setup:
+  - command: init
+    id: on-chain-assert
+    source: >
+      (define-on-chain-predicate (cantransfer (sender address) (amount uint64))
+        (let ((balance (get-account-info-panic amount sender)))
+          (> balance (+ amount n1000))))
+
+      (define-public (has-balance (addr address) (amount uint64)) 
+        (begin 
+          (on-chain-asserts! (cantransfer addr amount) (err 10))
+          (ok 1)))
+
+test:
+  - command: call
+    id: on-chain-assert
+    function: has-balance
+    args: "@3UUD436E2WCQFOUSFHCMBHEZYDH27ZFNTBOILPVT22OAJA76EFC3QLXSME n1"

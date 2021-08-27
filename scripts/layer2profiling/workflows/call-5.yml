@@ -1,0 +1,25 @@
+setup:
+  - command: init
+    id: do-nothing
+    address: LQ3GJAYLXFJ4FLC6KHG2TGDX4EQ72MWOX25BFMHYS4MECXVJUUIW6NBSCY
+    source: >
+      (define-public (main) (ok 1))
+
+  - command: init
+    id: call-do-nothing-5
+    address: CCPFBAOLE26Q74SHDEPFFRCZZPNJRWKZ3LJLYT5XUASZFTTW7ZWW5ZVC64
+    source: >
+      (define-public (main)
+        (begin
+          (contract-call? @LQ3GJAYLXFJ4FLC6KHG2TGDX4EQ72MWOX25BFMHYS4MECXVJUUIW6NBSCY .do-nothing main)
+          (contract-call? @LQ3GJAYLXFJ4FLC6KHG2TGDX4EQ72MWOX25BFMHYS4MECXVJUUIW6NBSCY .do-nothing main)
+          (contract-call? @LQ3GJAYLXFJ4FLC6KHG2TGDX4EQ72MWOX25BFMHYS4MECXVJUUIW6NBSCY .do-nothing main)
+          (contract-call? @LQ3GJAYLXFJ4FLC6KHG2TGDX4EQ72MWOX25BFMHYS4MECXVJUUIW6NBSCY .do-nothing main)
+          (contract-call? @LQ3GJAYLXFJ4FLC6KHG2TGDX4EQ72MWOX25BFMHYS4MECXVJUUIW6NBSCY .do-nothing main)))
+  
+test:
+  - command: call
+    address: CCPFBAOLE26Q74SHDEPFFRCZZPNJRWKZ3LJLYT5XUASZFTTW7ZWW5ZVC64
+    id: call-do-nothing-5
+    function: main
+    args: ""
