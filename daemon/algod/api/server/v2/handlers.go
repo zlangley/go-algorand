@@ -403,7 +403,7 @@ func (v2 *Handlers) SpeculationOperation(ctx echo.Context, speculation string, o
 		})
 	}
 	if operation == "commit" {
-		ledger.Commit()
+		err := ledger.Commit()
 		if err != nil {
 			return badRequest(ctx, err, err.Error(), v2.Log)
 		}
