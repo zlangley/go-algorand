@@ -87,11 +87,11 @@ func NewExecutor(ledger *data.SpeculationLedger, kenv kalgo.Env) *Executor {
 	}
 }
 
-// Submit executes the given VMCommand and commits to the speculative ledger.
+// Execute executes the given VMCommand and commits to the speculative ledger.
 //
 // If successful, the effects transactions from the execution are applied to
 // the speculative ledger, the speculative database is updated.
-func (ex *Executor) Submit(cmd *VMCommand, prof *util.Profiler) error {
+func (ex *Executor) Execute(cmd *VMCommand, prof *util.Profiler) error {
 	prof.Start("kalgo")
 	rawout, err := cmd.Run(ex.kenv)
 	if err != nil {

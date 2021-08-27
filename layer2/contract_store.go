@@ -3,25 +3,37 @@ package layer2
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
+
 	"github.com/algorand/go-algorand/crypto"
-	"github.com/algorand/go-algorand/data/basics"
 	"github.com/algorand/go-algorand/protocol"
 	"github.com/algorand/go-algorand/util/db"
 )
 
-var stableSchema = `
-	CREATE TABLE IF NOT EXISTS contract_kv_pairs(
+// Stable storage consists of a single table in which each entry is a triple
+// (contract_id, key, value).
+const stableSchema = `
+	CREATE TABLE IF NOT EXISTS contract_key_values(
 		contract_id CHAR(58) NOT NULL,
 		key CHAR(256) NOT NULL,
 		value BLOB NOT NULL,
 		PRIMARY KEY (contract_id, key)
 	);
 `
-var speculationSchema = `
+
+// In the speculation cache we have two tables: `contract_key_value_writes` contains
+// speculative updates to the underlying storage along with the batch index they came
+// from, and `txgroups` links batch indices to effects transaction group ids.
+//
+// The speculation cache lives in-memory. Since we use SQLite for both the stable
+// storage and the speculation cache, we also attach them. Attaching them allows us
+// to, for example, perform an INSERT INTO ... SELECT statement when updating stable
+// storage from the cache.
+const speculationSchema = `
 	ATTACH DATABASE ':memory:' AS speculation;
 
-	CREATE TABLE speculation.sequenced_contract_kv_pairs(
+	CREATE TABLE speculation.contract_key_values_writes(
 		contract_id CHAR(58) NOT NULL,
 		batch_idx INT,
 		key CHAR(256) NOT NULL,
@@ -29,7 +41,7 @@ var speculationSchema = `
 		PRIMARY KEY (contract_id, key, batch_idx)
 	);
 
-	CREATE INDEX speculation.sequenced_contact_kv_pairs__batch_idx__idx ON sequenced_contract_kv_pairs(batch_idx);
+	CREATE INDEX speculation.contract_key_value_writes__batch_idx__idx ON contract_key_values_writes(batch_idx);
 
 	CREATE TABLE speculation.txgroups(
 		group_id CHAR(58) NOT NULL PRIMARY KEY,
@@ -37,15 +49,11 @@ var speculationSchema = `
 	);
 `
 
-type ContractID basics.Address
+// A ContractID uniquely specifies a contract.
+type ContractID crypto.Digest
 
 func (cid ContractID) String() string {
-	return basics.Address(cid).String()
-}
-
-type KeyValue struct {
-	Key   []byte `json:"key""`
-	Value []byte `json:"value"`
+	return crypto.Digest(cid).String()
 }
 
 type StableStore struct {
@@ -53,7 +61,7 @@ type StableStore struct {
 }
 
 func NewStableStore(inMemory bool) (*StableStore, error) {
-	dba, err := db.MakeAccessor("contract.sqlite", false, inMemory)
+	dba, err := db.MakeAccessor("layer2_contract_state.sqlite", false, inMemory)
 	if err != nil {
 		return nil, err
 	}
@@ -64,19 +72,33 @@ func NewStableStore(inMemory bool) (*StableStore, error) {
 	return &StableStore{db: dba}, nil
 }
 
+// Get returns the value corresponding to the given contract ID and key.
+//
+// If the key does not exist in the store, nil is returned.
 func (s *StableStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	row := s.db.Handle.QueryRow(`
 		SELECT
 			value
 		FROM
-			contract_kv_pairs
+			contract_key_values
 		WHERE
 			contract_id = $1 AND key = $2
 	`, cid.String(), key)
 
 	var value []byte
 	err := row.Scan(&value)
+	// The value is non-nullable in the database, so we don't need to use the error to
+	// differentiate a missing key from a nil value; a nil value always means the key
+	// was absent.
+	if err == sql.ErrNoRows {
+		err = nil
+	}
 	return value, err
+}
+
+type KeyValue struct {
+	Key   []byte `json:"key""`
+	Value []byte `json:"value"`
 }
 
 func (s *StableStore) getWithPrefix(cid ContractID, keyPrefix []byte) ([]KeyValue, error) {
@@ -84,7 +106,7 @@ func (s *StableStore) getWithPrefix(cid ContractID, keyPrefix []byte) ([]KeyValu
 		SELECT
 			key, value
 		FROM
-			contract_kv_pairs
+			contract_key_values
 		WHERE
 			contract_id = $1 AND key LIKE $2
 		ORDER BY
@@ -113,35 +135,50 @@ func NewSpeculationStore(backingStore *StableStore) *SpeculationStore {
 	return &SpeculationStore{backingStore: backingStore, db: backingStore.db}
 }
 
+var ErrKeyDeleted = errors.New("speculation cache: key has been deleted")
+
+// Get returns the value corresponding to the given contract ID and key.
+//
+// The speculation cache is checked first, and then stable storage is checked.
+// There are two reasons the returned bytes can be nil: either there is no such
+// key in speculation or stable storage, or the key is in stable storage but has
+// been deleted in speculation. To help differentiate between these two cases, we
+// return ErrKeyDeleted when the latter case occurs.
 func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	row := s.db.Handle.QueryRow(`
 		SELECT
 			value
 		FROM
-			sequenced_contract_kv_pairs
+			contract_key_values_writes
 		WHERE
 			contract_id = $1 AND key = $2
 		ORDER BY
 			batch_idx DESC
+		LIMIT 1
 	`, cid.String(), key)
 
 	var value []byte
 	err := row.Scan(&value)
 	if err == sql.ErrNoRows {
+		// Not in speculation cache? Check store.
 		value, err = s.backingStore.Get(cid, key)
 		if err != nil {
 			return nil, err
 		}
+		return value, nil
+		err = nil
 	} else if err != nil {
-		// In-memory store error should never happen.
+		// In-memory cache error should never happen.
 		panic(err)
+	} else if value == nil {
+		return value, ErrKeyDeleted
 	}
 	return value, nil
 }
 
 func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, batch_idx int) {
 	_, err := s.db.Handle.Exec(`
-		INSERT OR REPLACE INTO sequenced_contract_kv_pairs(contract_id, key, value, batch_idx)
+		INSERT OR REPLACE INTO contract_key_values_writes(contract_id, key, value, batch_idx)
 		VALUES ($1, $2, $3, $4);
 	`, cid.String(), key, val, batch_idx)
 	if err != nil {
@@ -166,20 +203,20 @@ func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 	// If we wanted to use some other key-value store implementation for the persistent
 	// database, this would need to be changed.
 	_, err := s.db.Handle.Exec(`
-		DELETE FROM contract_kv_pairs
+		DELETE FROM contract_key_values
 		WHERE (contract_id, key) IN (
 			SELECT contract_id, key FROM
 				txgroups t
-			JOIN sequenced_contract_kv_pairs s ON
+			JOIN contract_key_values_writes s ON
 				t.batch_idx = s.batch_idx
 			WHERE
 				t.group_id = $1 AND s.value IS NULL
 		);
 
-		INSERT OR REPLACE INTO contract_kv_pairs(contract_id, key, value)
+		INSERT OR REPLACE INTO contract_key_values(contract_id, key, value)
 		SELECT contract_id, key, value FROM
 			txgroups t
-		JOIN sequenced_contract_kv_pairs s ON
+		JOIN contract_key_values_writes s ON
 			t.batch_idx = s.batch_idx
 		WHERE
 			t.group_id = $2 AND s.value IS NOT NULL;
@@ -198,9 +235,9 @@ func (s *SpeculationStore) GetWithPrefix(cid ContractID, keyPrefix []byte) ([]Ke
 		SELECT
 			a.key, a.value
 		FROM
-			sequenced_contract_kv_pairs a
+			contract_key_values_writes a
 			LEFT JOIN
-				sequenced_contract_kv_pairs b
+				contract_key_values_writes b
 			ON
 				a.contract_id = b.contract_id AND
 				a.key = b.key AND 

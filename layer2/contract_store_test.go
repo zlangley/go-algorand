@@ -1,7 +1,6 @@
 package layer2
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/algorand/go-algorand/crypto"
@@ -17,9 +16,9 @@ func TestIntegration(t *testing.T) {
 
 	cid := ContractID(crypto.Hash([]byte("test")))
 
-	_, err = store.db.Handle.Exec("INSERT INTO contract_kv_pairs(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("store-only-key"), []byte("store-only-value"))
+	_, err = store.db.Handle.Exec("INSERT INTO contract_key_values(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("store-only-key"), []byte("store-only-value"))
 	require.NoError(t, err)
-	_, err = store.db.Handle.Exec("INSERT INTO contract_kv_pairs(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("both-key"), []byte("both-store-value"))
+	_, err = store.db.Handle.Exec("INSERT INTO contract_key_values(contract_id, key, value) VALUES($1, $2, $3)", cid.String(), []byte("both-key"), []byte("both-store-value"))
 	require.NoError(t, err)
 
 	commit1, err := cache.Commitment(cid) // {store-only-key: store-only-value, both-key: both-store-value}
@@ -27,7 +26,7 @@ func TestIntegration(t *testing.T) {
 
 	// Test absence of key.
 	val, err := cache.Get(cid, []byte("cache-only-key"))
-	require.Error(t, sql.ErrNoRows, err)
+	require.Error(t, ErrNoKey, err)
 	require.Nil(t, val)
 
 	// Test read-your-writes.
@@ -88,7 +87,7 @@ func TestIntegration(t *testing.T) {
 	err = cache.PersistGroupState(groupID1)
 	require.NoError(t, err)
 	val, err = store.Get(cid, []byte("both-key"))
-	require.Equal(t, sql.ErrNoRows, err)
+	require.NoError(t, err)
 	require.Nil(t, val)
 	val, err = store.Get(cid, []byte("cache-only-key"))
 	require.NoError(t, err)
@@ -109,7 +108,6 @@ func TestNewSpeculationStore(t *testing.T) {
 	spec.Write(cid, []byte("foo"), []byte("bar"), 0)
 	spec = NewSpeculationStore(store)
 	val, err := spec.Get(cid, []byte("foo"))
-	require.Equal(t, sql.ErrNoRows, err)
+	require.Equal(t, ErrNoKey, err)
 	require.Nil(t, val)
-
 }

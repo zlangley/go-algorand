@@ -410,7 +410,7 @@ func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.Cont
 	ex := layer2.NewExecutor(ledger, kenv)
 
 	for _, item := range batch {
-		if err := ex.Submit(item, prof); err != nil {
+		if err = ex.Execute(item, prof); err != nil {
 			return internalError(ctx, err, err.Error(), v2.Log)
 		}
 		v2.Node.IncrementBatchIndex()
