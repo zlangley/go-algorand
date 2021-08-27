@@ -1179,13 +1179,15 @@
             "type": "string",
             "name": "contract_id",
             "in": "path",
-            "required": true
+            "required": true,
+            "description": "The contract address to which the key-value pair belongs."
           },
           {
             "type": "string",
             "name": "key",
             "in": "path",
-            "required": true
+            "required": true,
+            "description": "The key to read."
           }
         ],
         "responses": {
@@ -2461,7 +2463,8 @@
             "type": "array",
             "items": {
               "$ref": "#/definitions/KeyValue"
-            }
+            },
+            "description": "The key-value pairs corresponding to the given contract and key_prefix."
           }
         }
       }
@@ -2472,7 +2475,8 @@
         "required": ["value"],
         "properties": {
           "value": {
-            "type": "string"
+            "type": "string",
+            "description": "The value corresponding to the given contract and key."
           }
         }
       }

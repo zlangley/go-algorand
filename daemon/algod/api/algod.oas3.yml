@@ -355,6 +355,7 @@
             "schema": {
               "properties": {
                 "value": {
+                  "description": "The value corresponding to the given contract and key.",
                   "type": "string"
                 }
               },
@@ -402,6 +403,7 @@
             "schema": {
               "properties": {
                 "key_values": {
+                  "description": "The key-value pairs corresponding to the given contract and key_prefix.",
                   "items": {
                     "$ref": "#/components/schemas/KeyValue"
                   },
@@ -3026,6 +3028,7 @@
         "operationId": "ContractStorageGet",
         "parameters": [
           {
+            "description": "The contract address to which the key-value pair belongs.",
             "in": "path",
             "name": "contract_id",
             "required": true,
@@ -3034,6 +3037,7 @@
             }
           },
           {
+            "description": "The key to read.",
             "in": "path",
             "name": "key",
             "required": true,
@@ -3049,6 +3053,7 @@
                 "schema": {
                   "properties": {
                     "value": {
+                      "description": "The value corresponding to the given contract and key.",
                       "type": "string"
                     }
                   },
@@ -3092,6 +3097,7 @@
                 "schema": {
                   "properties": {
                     "key_values": {
+                      "description": "The key-value pairs corresponding to the given contract and key_prefix.",
                       "items": {
                         "$ref": "#/components/schemas/KeyValue"
                       },

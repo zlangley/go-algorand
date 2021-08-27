@@ -10,20 +10,14 @@ import (
 	"github.com/algorand/go-algorand/protocol"
 )
 
-type (
-	// step is a sequence number denoting distinct stages in Algorand
-	period uint64
-
-	// period is used to track progress with a given round in the protocol
-	step uint64
-)
-
+// A Selector defines the seed for the sortition.
 type Selector struct {
 	_struct struct{} `codec:""` // not omitempty
 
 	Seed   committee.Seed `codec:"seed"`
 	Round  basics.Round   `codec:"rnd"`
-	Period period         `codec:"per"`
+
+	// TODO: need field for listener too
 }
 
 func (sel Selector) ToBeHashed() (protocol.HashID, []byte) {
@@ -34,17 +28,20 @@ func (sel Selector) CommitteeSize(proto config.ConsensusParams) uint64 {
 	return 140
 }
 
+// CurrentSelector returns the current execution committee selector used for sortition.
 func CurrentSelector() Selector {
+	// TODO: This needs to be pulled from the contract committee app.
 	return Selector{Round: 1}
 }
 
+// ComputeWeightOnCommittee determines the weight of the credential on the selector.
 func (sel Selector) ComputeWeightOnCommittee(cred committee.UnauthenticatedCredential, vrfPub crypto.VrfPubkey, verifier crypto.SignatureVerifier) (uint64, error) {
+	// TODO: These need to be determined from the user account data. This will be USDC eventually?
 	var voterMoney uint64 = 200
 	var totalMoney uint64 = 10000000
 
 	proto := config.Consensus[protocol.ConsensusCurrentVersion]
 
-	// This should happen once per round.
 	ok, vrfOut := vrfPub.Verify(cred.Proof, sel)
 	if !ok {
 		err := fmt.Errorf("UnauthenticatedCredential.Verify: could not verify VRF Proof with %v (parameters = %+v, proof = %#v)", vrfPub, sel, cred.Proof)

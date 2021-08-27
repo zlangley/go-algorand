@@ -176,16 +176,21 @@ func (s *SpeculationStore) Get(cid ContractID, key []byte) ([]byte, error) {
 	return value, nil
 }
 
-func (s *SpeculationStore) Write(cid ContractID, key []byte, val []byte, batch_idx int) {
+// Write writes the given key-value pair to speculative storage.
+//
+// The batch_idx field specifies for which index in the batch did this write occur. This
+// is used later to (1) determine the most recent written value and (2) produce the writesets.
+func (s *SpeculationStore) Write(cid ContractID, key []byte, value []byte, batch_idx int) {
 	_, err := s.db.Handle.Exec(`
 		INSERT OR REPLACE INTO contract_key_values_writes(contract_id, key, value, batch_idx)
 		VALUES ($1, $2, $3, $4);
-	`, cid.String(), key, val, batch_idx)
+	`, cid.String(), key, value, batch_idx)
 	if err != nil {
 		panic(err)
 	}
 }
 
+// SetBatchIndexGroup links in the speculative cache an effects transaction group ID to a batch index.
 func (s *SpeculationStore) SetBatchIndexGroup(batch_idx int, groupID crypto.Digest) {
 	_, err := s.db.Handle.Exec("INSERT INTO txgroups(group_id, batch_idx) VALUES ($1, $2)", groupID.String(), batch_idx)
 	if err != nil {
@@ -193,6 +198,9 @@ func (s *SpeculationStore) SetBatchIndexGroup(batch_idx int, groupID crypto.Dige
 	}
 }
 
+// PersistGroupState writes the key-value pairs of the given effects txn group ID to disk.
+//
+// This should be called once the effects transactioin group ID appears on the blockchain.
 func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 	// NULL values need to be handled separately; a NULL value in the cache
 	// represents a deletion when we persist, while any other values correspond to upserts.
@@ -227,6 +235,7 @@ func (s *SpeculationStore) PersistGroupState(groupID crypto.Digest) error {
 	return nil
 }
 
+// GetWithPrefix returns the list of key-value pairs for a given contract whose key begins with keyPrefix.
 func (s *SpeculationStore) GetWithPrefix(cid ContractID, keyPrefix []byte) ([]KeyValue, error) {
 	// Since the databases are attached, we could get the latest key-value pairs
 	// with a JOIN, but it seems more complicated than just manually merging two
@@ -261,6 +270,7 @@ func (s *SpeculationStore) GetWithPrefix(cid ContractID, keyPrefix []byte) ([]Ke
 	return mergeKeyValuePairs(storePairs, cachePairs), nil
 }
 
+// Commitment computes and returns the hash of the given contract's current speculative state.
 func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 	kvs, err := s.GetWithPrefix(cid, []byte{})
 	fmt.Println(kvs)
@@ -272,6 +282,9 @@ func (s *SpeculationStore) Commitment(cid ContractID) (crypto.Digest, error) {
 }
 
 func mergeKeyValuePairs(storePairs, cachePairs []KeyValue) []KeyValue {
+	// Here we merge key-value pairs from the store and the cache. It is a basic
+	// sorted merge procedure, except we always prefer the cache key and a null value
+	// associated to a cache key means we should skip the pair altogether.
 	var cidx, sidx int
 	var merged []KeyValue
 	for cidx < len(cachePairs) && sidx < len(storePairs) {
@@ -291,7 +304,9 @@ func mergeKeyValuePairs(storePairs, cachePairs []KeyValue) []KeyValue {
 		}
 	}
 	for cidx < len(cachePairs) {
-		merged = append(merged, cachePairs[cidx])
+		if cachePairs[cidx].Value != nil {
+			merged = append(merged, cachePairs[cidx])
+		}
 		cidx++
 	}
 	for sidx < len(storePairs) {

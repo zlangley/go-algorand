@@ -540,6 +540,8 @@ type CompileResponse struct {
 
 // ContractStoreGetResponse defines model for ContractStoreGetResponse.
 type ContractStoreGetResponse struct {
+
+	// The value corresponding to the given contract and key.
 	Value string `json:"value"`
 }
 
@@ -554,6 +556,8 @@ type DryrunResponse struct {
 
 // GetWithPrefixResponse defines model for GetWithPrefixResponse.
 type GetWithPrefixResponse struct {
+
+	// The key-value pairs corresponding to the given contract and key_prefix.
 	KeyValues []KeyValue `json:"key_values"`
 }
 

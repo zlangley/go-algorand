@@ -58,7 +58,9 @@ const maxTealSourceBytes = 1e5
 const maxTealDryrunBytes = 1e5
 const maxAlgoClarityBatchBytes = 1e6
 
-var prof *util.Profiler
+// TODO: prof is a global for profiling speculative blockchain operations.
+// Should eventually be removed.
+var prof = util.NewProfiler()
 
 // Handlers is an implementation to the V2 route handler interface defined by the generated code.
 type Handlers struct {
@@ -81,15 +83,6 @@ type ledgerForApiHandlers interface {
 type NodeInterface interface {
 	Ledger() *data.Ledger
 
-	NewSpeculationLedger(rnd basics.Round) (string, error)
-	SpeculationLedger(token string) (*data.SpeculationLedger, error)
-	DestroySpeculationLedger(token string)
-
-	BatchIndex() int
-	IncrementBatchIndex()
-	OffChainStore() (*layer2.StableStore, error)
-	OffChainSpeculationStore() (*layer2.SpeculationStore, error)
-
 	Status() (s node.StatusReport, err error)
 	GenesisID() string
 	GenesisHash() crypto.Digest
@@ -100,6 +93,18 @@ type NodeInterface interface {
 	StartCatchup(catchpoint string) error
 	AbortCatchup(catchpoint string) error
 	Config() config.Local
+
+	// Layer2 State.
+
+	NewSpeculationLedger(rnd basics.Round) (string, error)
+	SpeculationLedger(token string) (*data.SpeculationLedger, error)
+	DestroySpeculationLedger(token string)
+
+	BatchIndex() int
+	IncrementBatchIndex()
+	OffChainStore() (*layer2.StableStore, error)
+	OffChainSpeculationStore() (*layer2.SpeculationStore, error)
+
 }
 
 // RegisterParticipationKeys registers participation keys.
@@ -355,98 +360,6 @@ func decodeJSONLayer2ExecutionBatch(data []byte) ([]*layer2.VMCommand, error) {
 		}
 	}
 	return items, nil
-}
-
-// ContractBatchExecute executes a batch of contract inits/calls.
-// (POST /v2/contracts/batch)
-func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
-	prof = util.NewProfiler()
-	prof.Start(kNode)
-
-	if params.Speculation == nil {
-		err := errors.New("speculation token required (for now)")
-		return badRequest(ctx, err, err.Error(), v2.Log)
-	}
-	speculation := *params.Speculation
-	ledger, err := v2.Node.SpeculationLedger(speculation)
-	if err != nil {
-		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
-	}
-
-	prof.Start(kNode)
-	req := ctx.Request()
-	buf := new(bytes.Buffer)
-	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClarityBatchBytes)
-	buf.ReadFrom(req.Body)
-	data := buf.Bytes()
-
-	batch, err := decodeJSONLayer2ExecutionBatch(data)
-	if err != nil {
-		return badRequest(ctx, err, err.Error(), v2.Log)
-	}
-
-	// Parsing done---start Layer 2 work.
-
-	gen := rand.New(rand.NewSource(2))
-	var seed crypto.Seed
-	gen.Read(seed[:])
-	s := crypto.GenerateSignatureSecrets(seed)
-	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
-
-	// Step 1: Are we chosen?
-	prof.Start(kKeygen)
-	sel := layer2.CurrentSelector()
-	cred := committee.MakeCredential(&vrfSec, sel)
-
-	prof.Start(kVRF)
-	_, err = sel.ComputeWeightOnCommittee(cred, vrfPub, s.SignatureVerifier)
-	if err != nil {
-		return internalError(ctx, err, err.Error(), v2.Log)
-	}
-
-	// Step 2: Run the VM.
-	prof.Start(kNode)
-	kenv := kalgoEnv(ctx.Request(), speculation)
-	ex := layer2.NewExecutor(ledger, kenv)
-
-	for _, item := range batch {
-		if err = ex.Execute(item, prof); err != nil {
-			return internalError(ctx, err, err.Error(), v2.Log)
-		}
-		v2.Node.IncrementBatchIndex()
-	}
-
-	// TODO: Step 3: Make fully authorized effects txns.
-
-	elapsedTotal := prof.ElapsedTotal()
-	prof.Stop()
-
-	response := struct {
-		Base        uint64                       `codec:"base"`
-		Checkpoints *[]uint64                    `codec:"checkpoints,omitempty"`
-		Token       string                       `codec:"token"`
-		Txns        [][]transactions.Transaction `codec:"txns"`
-		Timing      map[string]uint64            `codec:"timing"`
-	}{
-		Base:        uint64(ledger.Latest()),
-		Checkpoints: &ledger.Checkpoints,
-		Token:       speculation,
-		Txns:        ex.EffectsTxns(),
-		Timing: map[string]uint64{
-			"total":   elapsedTotal,
-			"node":    prof.Elapsed(kNode),
-			"keygen":  prof.Elapsed(kKeygen),
-			"vrf":     prof.Elapsed(kVRF),
-			"kalgo":   prof.Elapsed(kKalgoTotal),
-			"effects": prof.Elapsed("effects"),
-			"db":      prof.Elapsed(kCopyOnWrite),
-		},
-	}
-	data, err = encode(protocol.JSONHandle, response)
-	if err != nil {
-		return internalError(ctx, err, err.Error(), v2.Log)
-	}
-	return ctx.Blob(http.StatusOK, "application/json", data)
 }
 
 // Perform operations on a speculation object.
@@ -1151,6 +1064,100 @@ func (v2 *Handlers) TealCompile(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
+// ContractBatchExecute executes a batch of contract inits/calls.
+// (POST /v2/contracts/batch)
+func (v2 *Handlers) ContractBatchExecute(ctx echo.Context, params generated.ContractBatchExecuteParams) error {
+	prof = util.NewProfiler()
+	prof.Start(kNode)
+
+	if params.Speculation == nil {
+		err := errors.New("speculation token required (for now)")
+		return badRequest(ctx, err, err.Error(), v2.Log)
+	}
+	speculation := *params.Speculation
+	ledger, err := v2.Node.SpeculationLedger(speculation)
+	if err != nil {
+		return badRequest(ctx, err, errFailedLookingUpLedger, v2.Log)
+	}
+
+	prof.Start(kNode)
+	req := ctx.Request()
+	buf := new(bytes.Buffer)
+	req.Body = http.MaxBytesReader(nil, req.Body, maxAlgoClarityBatchBytes)
+	buf.ReadFrom(req.Body)
+	data := buf.Bytes()
+
+	batch, err := decodeJSONLayer2ExecutionBatch(data)
+	if err != nil {
+		return badRequest(ctx, err, err.Error(), v2.Log)
+	}
+
+	// Parsing done---start Layer 2 work.
+
+	gen := rand.New(rand.NewSource(2))
+	var seed crypto.Seed
+	gen.Read(seed[:])
+	s := crypto.GenerateSignatureSecrets(seed)
+	vrfPub, vrfSec := crypto.VrfKeygenFromSeed(seed)
+
+	// Step 1: Are we chosen?
+	prof.Start(kKeygen)
+	sel := layer2.CurrentSelector()
+	cred := committee.MakeCredential(&vrfSec, sel)
+
+	prof.Start(kVRF)
+	// Ignore the weight for now.
+	_, err = sel.ComputeWeightOnCommittee(cred, vrfPub, s.SignatureVerifier)
+	if err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
+	}
+
+	// Step 2: Run the VM.
+	prof.Start(kNode)
+	kenv := kalgoEnv(ctx.Request(), speculation)
+	ex := layer2.NewExecutor(ledger, kenv)
+
+	for _, item := range batch {
+		if err = ex.Execute(item, prof); err != nil {
+			return internalError(ctx, err, err.Error(), v2.Log)
+		}
+		v2.Node.IncrementBatchIndex()
+	}
+
+	// TODO: Step 3: Make fully authorized effects txns.
+
+	elapsedTotal := prof.ElapsedTotal()
+	prof.Stop()
+
+	response := struct {
+		Base        uint64                       `codec:"base"`
+		Checkpoints *[]uint64                    `codec:"checkpoints,omitempty"`
+		Token       string                       `codec:"token"`
+		Txns        [][]transactions.Transaction `codec:"txns"`
+		Timing      map[string]uint64            `codec:"timing"`
+	}{
+		Base:        uint64(ledger.Latest()),
+		Checkpoints: &ledger.Checkpoints,
+		Token:       speculation,
+		Txns:        ex.EffectsTxns(),
+		Timing: map[string]uint64{
+			"total":   elapsedTotal,
+			"node":    prof.Elapsed(kNode),
+			"keygen":  prof.Elapsed(kKeygen),
+			"vrf":     prof.Elapsed(kVRF),
+			"kalgo":   prof.Elapsed(kKalgoTotal),
+			"effects": prof.Elapsed("effects"),
+			"db":      prof.Elapsed(kCopyOnWrite),
+		},
+	}
+	data, err = encode(protocol.JSONHandle, response)
+	if err != nil {
+		return internalError(ctx, err, err.Error(), v2.Log)
+	}
+	return ctx.Blob(http.StatusOK, "application/json", data)
+}
+
+// ContractStorageGet returns the value for the given key in speculative storage.
 // (POST /v2/speculation/get/<contractId>/<key>)
 func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key string) error {
 	spec, err := v2.Node.OffChainSpeculationStore()
@@ -1170,6 +1177,8 @@ func (v2 *Handlers) ContractStorageGet(ctx echo.Context, contractId string, key 
 	})
 }
 
+// ContractStorageGetWithPrefix returns a list of key-value pairs in the speculative database with the given prefix.
+// (GET /v2/speculation/get_with_prefix/<contractId>/<key_prefix>)
 func (v2 *Handlers) ContractStorageGetWithPrefix(ctx echo.Context, contractId string, keyPrefix string) error {
 	spec, err := v2.Node.OffChainSpeculationStore()
 	if err != nil {
@@ -1190,6 +1199,9 @@ func (v2 *Handlers) ContractStorageGetWithPrefix(ctx echo.Context, contractId st
 	return ctx.JSON(http.StatusOK, generated.GetWithPrefixResponse{KeyValues: kvs})
 }
 
+// ContractStorageWrite writes the given key-value pair to the speculative cache.
+//
+// This hook is only provided for testing purposes and should eventually be removed.
 // (POST /v2/speculation/write/<contractId>/<key>)
 func (v2 *Handlers) ContractStorageWrite(ctx echo.Context, contractId string, key string) error {
 	spec, err := v2.Node.OffChainSpeculationStore()
